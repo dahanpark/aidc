@@ -22,6 +22,14 @@ Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atla
 - LOCATION: 국내 AIDC 기본 범위, 지도 우선·오른쪽 조건/지역 기사
 - NEWS / SYNTHESIS / SCRAP / ALERTS / SETTINGS
 
+## 설명서와 프로젝트 문서
+
+[프로젝트 문서 ZIP 다운로드](https://github.com/dahanpark/aidc/releases/download/project-documents-20261019-ff855ff5/AIDC.ATLAS.PROJECT.ZIP)
+
+프로그램 목적·구축 방법·업무 개선·AI 활용·효과·조직 확장 설명서의 HTML/Word 판, 세부 기획서, 프로젝트 스킬 13개, 사용자 매뉴얼과 파일 안내를 포함합니다.
+[문서 릴리스 페이지](https://github.com/dahanpark/aidc/releases/tag/project-documents-20261019-ff855ff5)에서 구성과 검증 범위를 확인할 수 있습니다.
+문서 패키지 기준은 REV012이며, 실행 소스는 이 저장소의 main 브랜치를 사용합니다.
+
 ## 데이터와 한계
 
 처음 실행하면 공개 공식자료 기반 고정 검증 사례로 시작합니다. 실제 공개 기사 메타데이터 수집은 앱에서 실행·설정합니다.
