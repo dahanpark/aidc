@@ -20,7 +20,7 @@
     <button data-view="notifications" class="nav" aria-label="알림함" title="알림함"><span aria-hidden="true">♧</span><small>ALERTS</small><i id="noticeCount" hidden></i></button>
   </nav>
   <button data-view="settings" class="nav rail-bottom" aria-label="환경 설정" title="환경 설정"><span aria-hidden="true">⚙</span><small>SETTINGS</small></button>
-  <span class="rail-version" title="v0.4 · REV011">REV011</span>
+  <span class="rail-version" title="v0.4 · REV012">REV012</span>
 </aside>
 <div class="workspace">
   <header class="topbar">
@@ -31,9 +31,9 @@
   </header>
   <div class="mode-banner"><span class="status-dot"></span><strong>공개 기사 + 검증 근거 기반 로컬 파일럿</strong><span>실시간 공개 메타데이터 · 고정 검증 사례</span><span class="banner-tail">기사 본문 미확인 · 사내 AI 미연결</span></div>
   <main id="main" tabindex="-1">
-    <section class="contextbar" aria-label="탐색 조건"><div class="scope-tabs" id="scopeTabs" role="group" aria-label="수집 범위"><button data-scope="kr-dc" aria-pressed="false">국내 DC</button><button class="active" data-scope="kr-ai" aria-pressed="true">국내 AIDC</button><button data-scope="global-ai" aria-pressed="false">해외 AIDC</button><details class="scope-more"><summary>전체·미분류</summary><div><button data-scope="all" aria-pressed="false">전체 <span id="totalScope">기사 —</span></button><button data-scope="unresolved" aria-pressed="false">분류 미확인</button></div></details></div><div class="context-right"><span class="asof" id="asof" hidden>기준 시점 확인 중</span><label class="switch-label"><input id="includeRead" type="checkbox"><span class="switch"></span>읽은 변화 포함</label><div class="heading-actions"><button id="importOpen" class="button">＋ 자료 등록</button><button id="exportOpen" class="button primary">내보내기 <span aria-hidden="true">↗</span></button></div></div></section>
+    <div id="workspaceControlsHome"><section class="contextbar" aria-label="탐색 조건"><div class="scope-tabs" id="scopeTabs" role="group" aria-label="수집 범위"><button data-scope="kr-dc" aria-pressed="false">국내 DC</button><button class="active" data-scope="kr-ai" aria-pressed="true">국내 AIDC</button><button data-scope="global-ai" aria-pressed="false">해외 AIDC</button><details class="scope-more"><summary>전체·미분류</summary><div><button data-scope="all" aria-pressed="false">전체 <span id="totalScope">기사 —</span></button><button data-scope="unresolved" aria-pressed="false">분류 미확인</button></div></details></div><div class="context-right"><span class="asof" id="asof" hidden>기준 시점 확인 중</span><label class="switch-label"><input id="includeRead" type="checkbox"><span class="switch"></span>읽은 변화 포함</label><div class="heading-actions"><button id="importOpen" class="button">＋ 자료 등록</button><button id="exportOpen" class="button primary">내보내기 <span aria-hidden="true">↗</span></button></div></div></section>
     <section class="news-searchbar" aria-label="기사 검색과 수집">
-      <label><span>기사 기간 · 기본 3년</span><select id="newsPeriod" aria-label="기사 기간"><option value="3y" selected>3년</option><option value="1y">1년</option><option value="6m">6개월</option><option value="3m">3개월</option><option value="1m">1개월</option><option value="2w">2주</option><option value="1w">1주</option><option value="3d">3일</option><option value="1d">하루</option></select></label>
+      <label><span>기사 기간 · 기본 1년</span><select id="newsPeriod" aria-label="기사 기간"><option value="3y">3년</option><option value="1y" selected>1년</option><option value="6m">6개월</option><option value="3m">3개월</option><option value="1m">1개월</option><option value="2w">2주</option><option value="1w">1주</option><option value="3d">3일</option><option value="1d">하루</option></select></label>
       <label class="news-query"><span>기사 검색어</span><input id="newsQuery" type="search" placeholder="기업·사업·기술 키워드" aria-label="기사 검색어"></label>
       <button id="newsSearch" class="button">검색</button>
       <details class="advanced-query"><summary>상세 검색·수집</summary><div>      <label><span>해외 · 나라</span><select id="newsCountry" aria-label="해외 나라"><option value="">전체 나라</option></select></label>
@@ -41,6 +41,7 @@
 <button id="newsCollect" class="button primary">기간 기사 수집 ↻</button></div></details>
       <div class="news-search-note" id="newsFilterNote">기간·범위·나라·도시는 기사 목록·종합 요약·통합표·내보내기에 함께 적용됩니다.</div>
     </section>
+    </div>
     <div id="errorBanner" class="error-banner" role="alert" hidden></div>
     <div id="loading" class="loading" role="status"><span class="loader"></span><span id="loadingMessage">JSON 저장소에서 탐색 공간을 준비하고 있습니다.</span></div>
     <div id="viewContainer" hidden></div>
@@ -49,5 +50,5 @@
 </div>
 <dialog id="modal" aria-labelledby="modalTitle"><div class="modal-head"><div><p class="eyebrow">AIDC ATLAS</p><h2 id="modalTitle"></h2></div><button id="modalClose" class="icon-button" aria-label="대화상자 닫기">✕</button></div><div id="modalContent"></div></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
-<script src="/atlas_graph.js" defer></script><script src="/atlas_map.js" defer></script><script src="/atlas_analysis.js" defer></script><script src="/atlas_workspaces.js" defer></script><script src="/app.js" defer></script>
+<script src="/atlas_graph.js" defer></script><script src="/atlas_map.js" defer></script><script src="/atlas_analysis.js" defer></script><script src="/atlas_workspaces.js" defer></script><script src="/atlas_workbench.js" defer></script><script src="/app.js" defer></script>
 </body></html>

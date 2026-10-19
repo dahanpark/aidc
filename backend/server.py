@@ -25,6 +25,7 @@ from .ontology import build_ontology
 from .company_catalog import build_company_catalog
 from .project_discovery import enrich_discovery, build_project_discovery
 from .attention import build_attention, apply_acknowledgement
+from .projection_cache import ProjectionCache
 
 
 class SnapshotIntegrityError(RuntimeError):
@@ -50,13 +51,14 @@ class AtlasApplication:
         self._view_error_pointer = None
         self._view_validator = None
         self._view_refresh_lock = threading.Lock()
+        self._workspace_cache = ProjectionCache()
         self.repo.publish_callback = self._publish_view_snapshot
         pipeline.bootstrap(self.repo, self.root)
         def migrate(ds):
             news.enrich_articles(ds,list(ds.get('articles',{})))
             enrich_discovery(ds,list(ds.get('articles',{})))
             settings = ds.setdefault('settings',{}).setdefault('app',{'id':'app'})
-            settings['news_default_period'] = '3y'
+            settings['news_default_period'] = '1y'
             settings.setdefault('baseline_backfill_enabled',True)
             for job in ds.get('news_jobs', {}).values():
                 if job.get('status') in ('running', 'queued'):
@@ -150,6 +152,17 @@ class AtlasApplication:
 
     def state(self, filters=None):
         snapshot = self.view_snapshot()
+        # Always check the validated snapshot first: a warm projection must not
+        # hide corruption, pending validation or a changed read/bookmark state.
+        dependencies = []
+        for filename in ('news_sources.json', 'company_profile_registry.json'):
+            path = self.root / 'config' / filename
+            dependencies.append((path.stat().st_mtime_ns, path.stat().st_size) if path.exists() else None)
+        cache_key = (snapshot['generation'], json.dumps(filters or {}, sort_keys=True, ensure_ascii=False),
+                     tuple(dependencies), self.repo.recovery_notice)
+        cached = self._workspace_cache.get(cache_key)
+        if cached is not None:
+            return cached
         datasets = snapshot["datasets"]
         names = ["projects", "companies", "articles", "claims", "relationships", "changes", "read_states",
                  "bookmarks", "internal_links", "notifications", "jobs", "coverage", "extraction_runs", "news_updates", "news_read_states"]
@@ -181,8 +194,10 @@ class AtlasApplication:
                      "capabilities": {"live_collection": sources_path.exists(), "real_ai_verified": False,
                                       "json_persistence": True, "internal_fetch": False,
                                       "backup_restore": True, "exports": True}})
-        return {"data": data, "snapshot_id": snapshot["generation"], "as_of": snapshot["as_of"],
-                "csrf_token": self.csrf, "warnings": [self.repo.recovery_notice] if self.repo.recovery_notice else []}
+        response = {"data": data, "snapshot_id": snapshot["generation"], "as_of": snapshot["as_of"],
+                    "csrf_token": self.csrf, "warnings": [self.repo.recovery_notice] if self.repo.recovery_notice else []}
+        self._workspace_cache.put(cache_key, response)
+        return response
 
     def search_news(self, payload):
         from . import collector

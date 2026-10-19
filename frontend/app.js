@@ -2,7 +2,7 @@
 (() => {
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
-  const S = {data: null, token: '', view: 'overview', scope: 'kr-ai', query: '', includeRead: false, selected: null, selectedCompany: null, region: '', role: '', stage: '', zoom: 1, selectedArticles: new Set(), busy: false, period:'3y', newsQuery:'', country:'', city:'', newsCompany:'', newsProject:'', sourceIds:[], poll:null, request:0, closedGroups:new Set(),newsPage:1,newsContext:'',ontologySelection:null,companyRole:'all',companyFocus:null};
+  const S = {data: null, token: '', view: 'overview', scope: 'kr-ai', query: '', includeRead: false, selected: null, selectedCompany: null, region: '', role: '', stage: '', zoom: 1, selectedArticles: new Set(), busy: false, period:'1y', newsQuery:'', country:'', city:'', newsCompany:'', newsProject:'', sourceIds:[], poll:null, request:0, closedGroups:new Set(),newsPage:1,newsContext:'',ontologySelection:null,companyRole:'all',companyFocus:null};
   const scopeLabels = {'kr-dc': '국내 DC', 'kr-ai': '국내 AIDC', 'global-ai': '해외 AIDC',unresolved:'분류 미확인'};
   const titles = {overview: ['사업의 변화에서, 다음 기회로.', '공개 근거를 따라 사업과 참여 기업의 연결을 살펴보세요.'], projects: ['사업을 한눈에, 근거는 가까이.', '프로그램·사이트·단계와 계획·실제, 용량의 기준을 구분합니다.'], companies: ['기업의 오늘에서, 향후 3년으로.', '확인된 사업 참여와 공개 일정만 모아 봅니다. 미정·장기는 별도로 표시합니다.'], sources: ['모든 연결에는 근거가 있습니다.', '공개 출처와 발행 시점, 확인된 원문 범위를 함께 확인하세요.'], bookmarks: ['다시 볼 근거를 모아 두는 곳.', '태그·폴더·직접 메모로 정리합니다. 메모는 외부 보고서에서 제외합니다.'], notifications: ['중요한 변화, 놓치지 않도록.', '저장된 변화에 대한 로컬 알림함입니다. OS 알림 발송은 연결되지 않았습니다.'], settings: ['인텔리전스의 작동 방식을 설정합니다.', '로컬 데이터, 고정 자료 재처리, 사내 AI 연결 상태를 관리합니다.']};
   titles.news=['기사에서 변화로, 근거를 연결합니다.', '중요매체 기사 · 출처별 발행시각 · 메타데이터 종합 · 통합표를 같은 조건으로 살펴보세요.'];
@@ -88,9 +88,10 @@
     } finally { clearTimeout(timeout);if(request===S.request){clearTimeout(S.slowLoad);S.loading=false;$('#loading').hidden=true;$('#viewContainer').setAttribute('aria-busy','false');} }
   }
   async function mutate(path, payload, success, method) { try { const result = await api(path, payload, method); await load(); if (success) toast(success); return result; } catch (error) { toast(error.message, true); throw error; } }
-  function navigate(view,scopeOverride) {view=view==='sources'?'news':view;view=titles[view]?view:'overview';S.viewScopes||={};const changed=S.view!==view;if(changed)S.viewScopes[S.view]=S.scope;const nextScope=scopeOverride||(changed&&['overview','projects','companies'].includes(view)?S.viewScopes[view]||(view==='companies'?'all':'kr-ai'):S.scope),changedScope=nextScope!==S.scope;if(changed||changedScope){S.graphCluster=null;S.graphSelection=null;S.mapSelection=null;S.dashboardArticleIds=null;S.dashboardRegionName='';}if(changed){S.country='';S.city='';S.region='';S.selectedCompany=null;S.newsCompany='';S.newsProject='';S.explorerMode='project';S.companyRole='all';S.explorerRole='all';S.companyCategory='all';}S.view=view;S.scope=nextScope;location.hash=view;if(changedScope){S.projectFocus=null;S.companyKeyword='';S.country='';S.city='';load();}else render();}
+  function navigate(view,scopeOverride) {view=view==='sources'?'news':view;view=titles[view]?view:'overview';S.viewScopes||={};const changed=S.view!==view;if(changed)S.viewScopes[S.view]=S.scope;const nextScope=scopeOverride||(changed&&['overview','projects','companies','regions'].includes(view)?S.viewScopes[view]||(view==='companies'?'all':'kr-ai'):S.scope),changedScope=nextScope!==S.scope;if(changed||changedScope){S.graphCluster=null;S.graphSelection=null;S.mapSelection=null;S.dashboardArticleIds=null;S.dashboardRegionName='';}if(changed){S.country='';S.city='';S.region='';S.selectedCompany=null;S.newsCompany='';S.newsProject='';S.explorerMode='project';S.companyRole='all';S.explorerRole='all';S.companyCategory='all';}S.view=view;S.scope=nextScope;location.hash=view;if(changedScope){S.projectFocus=null;S.companyKeyword='';S.country='';S.city='';load();}else render();}
   function render() {
     if (!S.data) return;
+    const controls=[$('.contextbar'),$('.news-searchbar'),$('#loading')];window.AtlasWorkbench?.restore($('#workspaceControlsHome'),controls);
     const root = $('#viewContainer');const previousTree=$('.retained-ontology',root);if(previousTree)S.legacyOntologyOpen=previousTree.open;root.replaceChildren();
     $$('[data-view]').forEach(n => { n.classList.toggle('active', n.dataset.view === S.view); if (n.dataset.view === S.view) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); });
     if (S.selectedCompany && !['overview','companies','projects','regions'].includes(S.view)) {
@@ -98,6 +99,7 @@
     }
     if(S.view==='news'&&S.newsProject)root.append(add(el('div','callout'),el('strong','',`선택 사업 · ${find('projects',S.newsProject)?.name||S.newsProject}`),button('사업 조건 해제','button small',()=>{S.newsProject='';load();})));
     ({overview: renderOverview, projects: renderProjects, companies: renderCompanies, regions:renderRegions, news:renderNews, synthesis:renderSynthesis, sources:renderNews, bookmarks: () => renderSources(true), notifications: renderNotifications, settings: renderSettings})[S.view](root);
+    window.AtlasWorkbench?.compose(root,{view:S.view,controls});
   }
   function empty(title, description) { return add(el('div', 'empty'), el('span', 'empty-icon', '◈'), el('h3', '', title), el('p', '', description)); }
   function section(title, subtitle, action) { return add(el('div', 'section-head'), add(el('div'), el('h2', '', title), subtitle ? el('p', '', subtitle) : null), action); }
@@ -374,8 +376,9 @@
     pending.append(button(`보류 기사 전체 근거 ${pendingArticles.length}개`,'button small',()=>articleCollection(pendingArticles.map(a=>a.id),'사업명 식별 보류 기사')));const list=el('div','source-grid');pendingArticles.slice(0,12).forEach(a=>list.append(sourceCard(a)));pending.append(list);panel.append(pending);root.append(panel);
   }
   function focusCompany(id){
-    const chosen=companyCatalog().find(c=>c.id===id);S.companyFocus=id||null;S.companyKeyword='';S.graphCluster=null;S.graphSelection=null;
+    const previousScope=S.scope,chosen=companyCatalog().find(c=>c.id===id);S.companyFocus=id||null;S.companyKeyword='';S.graphCluster=null;S.graphSelection=null;
     if(chosen&&!chosen.selected_article_count&&chosen.selected_article_count!==undefined){S.scope='all';S.country='';S.city='';S.newsCompany='';S.selectedCompany=null;}
+    if(S.data&&S.scope===previousScope&&!S.integrityError)render();
     load();
   }
   function mapDescription(marker){
@@ -846,5 +849,5 @@
   window.addEventListener('hashchange',()=>{const view=location.hash.slice(1);if(titles[view]&&S.view!==view)navigate(view);});
   let mobileGraph=matchMedia('(max-width:560px)').matches;window.addEventListener('resize',()=>{const now=matchMedia('(max-width:560px)').matches;if(now!==mobileGraph){mobileGraph=now;render();}});
   window.addEventListener('offline',()=>{toast('네트워크 연결이 끊겼습니다. 로컬 서버 연결 상태를 확인하세요.',true);});
-  const initial=location.hash.slice(1);if(titles[initial])S.view=initial==='sources'?'news':initial;if(initial==='companies')S.scope='all';if(initial==='sources')history.replaceState(null,'','#news');load(true);
+  const initial=location.hash.slice(1);if(titles[initial])S.view=initial==='sources'?'news':initial;if(initial==='companies')S.scope='all';if(initial==='regions')S.scope='kr-ai';if(initial==='sources')history.replaceState(null,'','#news');load(true);
 })();
