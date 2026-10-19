@@ -88,7 +88,7 @@
     } finally { clearTimeout(timeout);if(request===S.request){clearTimeout(S.slowLoad);S.loading=false;$('#loading').hidden=true;$('#viewContainer').setAttribute('aria-busy','false');} }
   }
   async function mutate(path, payload, success, method) { try { const result = await api(path, payload, method); await load(); if (success) toast(success); return result; } catch (error) { toast(error.message, true); throw error; } }
-  function navigate(view,scopeOverride) {view=view==='sources'?'news':view;view=titles[view]?view:'overview';S.viewScopes||={};const changed=S.view!==view;if(changed)S.viewScopes[S.view]=S.scope;const nextScope=scopeOverride||(changed&&['overview','projects','companies'].includes(view)?S.viewScopes[view]||'kr-ai':S.scope),changedScope=nextScope!==S.scope;if(changed||changedScope){S.graphCluster=null;S.graphSelection=null;S.mapSelection=null;S.dashboardArticleIds=null;S.dashboardRegionName='';}if(changed){S.country='';S.city='';S.region='';S.selectedCompany=null;S.newsCompany='';S.newsProject='';S.explorerMode='project';S.companyRole='all';S.explorerRole='all';S.companyCategory='all';}S.view=view;S.scope=nextScope;location.hash=view;if(changedScope){S.projectFocus=null;S.companyKeyword='';S.country='';S.city='';load();}else render();}
+  function navigate(view,scopeOverride) {view=view==='sources'?'news':view;view=titles[view]?view:'overview';S.viewScopes||={};const changed=S.view!==view;if(changed)S.viewScopes[S.view]=S.scope;const nextScope=scopeOverride||(changed&&['overview','projects','companies'].includes(view)?S.viewScopes[view]||(view==='companies'?'all':'kr-ai'):S.scope),changedScope=nextScope!==S.scope;if(changed||changedScope){S.graphCluster=null;S.graphSelection=null;S.mapSelection=null;S.dashboardArticleIds=null;S.dashboardRegionName='';}if(changed){S.country='';S.city='';S.region='';S.selectedCompany=null;S.newsCompany='';S.newsProject='';S.explorerMode='project';S.companyRole='all';S.explorerRole='all';S.companyCategory='all';}S.view=view;S.scope=nextScope;location.hash=view;if(changedScope){S.projectFocus=null;S.companyKeyword='';S.country='';S.city='';load();}else render();}
   function render() {
     if (!S.data) return;
     const root = $('#viewContainer');const previousTree=$('.retained-ontology',root);if(previousTree)S.legacyOntologyOpen=previousTree.open;root.replaceChildren();
@@ -234,12 +234,13 @@
   }
   function graphSelection(value){
     S.graphSelection=value;const node=value.node;
-    if(node?.type==='company'&&!node.clustered_ids&&S.view==='companies'){S.companyFocus=node.entity_id;S.companyKeyword='';load();return;}
+    if(node?.type==='company'&&!node.clustered_ids&&S.view==='companies'){S.companyCategory='all';S.companyNameFilter='';S.companyRole='all';focusCompany(node.entity_id);return;}
     if(S.view==='projects'&&(node?.type==='project'||node?.is_named_candidate)){S.projectFocus=node.is_named_candidate?`candidate:${node.entity_id}`:node.entity_id;S.graphCluster=null;}
     render();
   }
   function compactNetwork(input,mode,centerId,keywordId){
     let nodes=input.nodes||[],edges=input.edges||[];
+    if(mode==='company-network')return {nodes,edges};
     const center=nodes.find(n=>n.id===centerId),expanded=S.graphCluster?.node_ids;
     if(center||expanded){
       const focus=new Set(expanded||[center.id]),ids=new Set(focus);
@@ -509,7 +510,7 @@
     const context=selected?{kind:'node',id:selected.id,node:selected,article_ids:selected.article_ids}:edge?{kind:'edge',id:edge.id,edge,article_ids:edge.article_ids}:center?{kind:'node',id:center.id,node:center,article_ids:center.article_ids}:null;
     if(window.AtlasGraph)layout.append(window.AtlasGraph.create({nodes:display.nodes,edges:display.edges,mode,centerId,height:620,title,selectedId:context?.id,totalNodes:data.graph?.total_nodes||data.nodes.length,viewKey:`${S.view}:${S.scope}:${newsParams()}:${centerId||'scope'}:${S.graphCluster?.id||'summary'}`,onSelect:graphSelection,onAcknowledge:graphAcknowledge}));
     else layout.append(empty('관계도를 준비하고 있습니다','저장된 근거와 기사 목록은 아래에서 볼 수 있습니다.'));
-    layout.append(graphInspector(context));panel.append(layout);root.append(panel);
+    const inspector=graphInspector(context);if(mode==='company-network'&&context?.node&&['project','pending'].includes(context.node.type))inspector.append(button('PROJECT에서 사업·기사 보기','button small',()=>focusProject({id:context.node.entity_id,is_candidate:!!context.node.is_named_candidate})));layout.append(inspector);panel.append(layout);root.append(panel);
   }
   function workspaceArticles(root,articles,title,key){
     const rows=[...new Map(articles.map(a=>[a.id,a])).values()].sort((a,b)=>String(b.published_at||'').localeCompare(String(a.published_at||''))||a.id.localeCompare(b.id));
@@ -549,7 +550,7 @@
     const model=window.AtlasWorkspaces?.companyGraph(S.data,selected.id);if(!model)return;
     const profile=el('div','company-profile-strip');add(profile,el('strong','',selected.name),...companyCategories(selected).map(id=>badge(categories.find(c=>c.id===id)?.label||roleName(id),'neutral')),el('small','',selected.company_profile?.manual_override?'사용자 분류':selected.profile_evidence?.some(e=>e.status==='classification_proposal')?'자동 분류 후보 포함':'자동 근거 분류'));
     if(selected.company_profile?.manual_override)profile.append(button('자동 분류로 복귀','button text small',async()=>{try{await mutate('/api/company-classification',{company_id:selected.id,reset:true},'사용자 분류를 해제했습니다. 이전 분류 이력은 보존합니다.');}catch{}}));root.append(profile);
-    workspaceGraph(root,model,{id:'companyNetwork',title:`${selected.name} · 연관 기업 관계도`,mode:'company-network',centerId:model.centerId});
+    workspaceGraph(root,model,{id:'companyNetwork',title:`${selected.name} · 1단계 관계사 · DC/AIDC 프로젝트`,mode:'company-network',centerId:model.centerId});
     const projects=el('section','workspace-project-context');projects.append(section(`관련 사업지 · ${model.projects.length}개`,'등록 사업과 기사 사업명 후보를 구분합니다. 같은 이름의 관측은 동일 부지·참여 확정이 아닙니다.'));
     const cards=el('div','workspace-project-cards');model.projects.forEach(project=>{const card=el('article','workspace-project-card'),candidate=project.is_named_candidate||project.kind==='candidate';add(card,badge(candidate?'기사 사업명 후보':'등록 사업','neutral'),button(project.name,'button text',()=>focusProject({...project,is_candidate:candidate})),el('p','',project.location||(project.cities||[]).join(' · ')||project.country||'지역 미확인'),el('small','',`관련 기사 ${project.article_ids?.length||0}개`));cards.append(card);});if(!model.projects.length)cards.append(empty('연결된 사업지가 없습니다','회사 이름 관측만 있는 기사와 실제 사업 연결을 구분합니다.'));projects.append(cards);root.append(projects);
     workspaceArticles(root,ontologyArticles(model.article_ids),`${selected.name} 관련 기사`,`company:${selected.id}:${S.scope}`);
@@ -845,5 +846,5 @@
   window.addEventListener('hashchange',()=>{const view=location.hash.slice(1);if(titles[view]&&S.view!==view)navigate(view);});
   let mobileGraph=matchMedia('(max-width:560px)').matches;window.addEventListener('resize',()=>{const now=matchMedia('(max-width:560px)').matches;if(now!==mobileGraph){mobileGraph=now;render();}});
   window.addEventListener('offline',()=>{toast('네트워크 연결이 끊겼습니다. 로컬 서버 연결 상태를 확인하세요.',true);});
-  const initial=location.hash.slice(1);if(titles[initial])S.view=initial==='sources'?'news':initial;if(initial==='sources')history.replaceState(null,'','#news');load(true);
+  const initial=location.hash.slice(1);if(titles[initial])S.view=initial==='sources'?'news':initial;if(initial==='companies')S.scope='all';if(initial==='sources')history.replaceState(null,'','#news');load(true);
 })();

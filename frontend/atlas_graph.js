@@ -19,7 +19,7 @@
   const facts=item=>number(item.fact_change_count??item.attention?.fact_change_count);
   const articleIds=item=>Array.isArray(item.article_ids)?item.article_ids:[];
   const role=node=>str(node.role||node.role_id||node.entity_id||node.id).replace(/^role:/,'');
-  const color=node=>node.type==='company'&&node.profile_categories?.length?(ROLES.find(([id])=>id===node.profile_categories[0])?.[2]||COLORS.company):node.type==='role'?(ROLES.find(([id])=>id===role(node))?.[2]||COLORS.role):(COLORS[node.type]||COLORS.project);
+  const color=node=>node.project_category?({dc:'#7dd3fc',aidc:'#5eead4',unresolved:'#d5b879'}[node.project_category]||COLORS.pending):node.type==='company'&&node.profile_categories?.length?(ROLES.find(([id])=>id===node.profile_categories[0])?.[2]||COLORS.company):node.type==='role'?(ROLES.find(([id])=>id===role(node))?.[2]||COLORS.role):(COLORS[node.type]||COLORS.project);
   const confirmed=edge=>edge.basis==='explicit_stored_relationship'||edge.status==='registered_evidence'||['project_hierarchy','registered_project','registered_role'].includes(edge.type);
   function short(value,max=27){const chars=[...str(value)];return chars.length>max?chars.slice(0,max-1).join('')+'…':chars.join('');}
   function wrap(value,width=18,limit=2){const words=[...str(value)],lines=[];let line='',size=0;for(const c of words){const w=/[\u0000-\u00ff]/.test(c)?.56:1;if(size+w>width){lines.push(line);line='';size=0;if(lines.length===limit){lines[limit-1]=short(lines[limit-1],Math.max(3,[...lines[limit-1]].length-1))+'…';return lines;}}line+=c;size+=w;}if(line)lines.push(line);return lines.slice(0,limit);}
@@ -36,9 +36,15 @@
     const ordered=list=>list.slice().sort((a,b)=>number(b.article_count)-number(a.article_count)||name(a).localeCompare(name(b),'ko')||a.id.localeCompare(b.id));
     if(mode==='company-network'){
       const center=nodes.find(n=>n.id===centerId||n.entity_id===centerId)||nodes[0];
-      if(center)points.set(center.id,{x:790,y:480,w:248,h:116,center:true});
-      ordered(nodes.filter(n=>n!==center)).forEach((n,i)=>{const near=i<8;points.set(n.id,{x:near?(i%2?1110:470):350+((i-8)%4)*280,y:near?220+Math.floor(i/2)*175:1100+Math.floor((i-8)/4)*125,w:224,h:90});});
-      headings.push({x:260,y:55,text:'연결 기업 · 근거별 관계'},{x:670,y:55,text:'선택 기업 중심'},{x:1110,y:55,text:'참여·관측과 직접 계약 구분'});
+      if(center)points.set(center.id,{x:920,y:480,w:248,h:116,center:true});
+      ordered(nodes.filter(n=>n!==center&&n.type==='company')).forEach((n,i)=>{const near=i<8;points.set(n.id,{x:near?(i%2?1190:650):520+((i-8)%4)*280,y:near?220+Math.floor(i/2)*175:1100+Math.floor((i-8)/4)*125,w:224,h:90});});
+      const leaves=nodes.filter(n=>n!==center&&n.type!=='company');
+      for(const [category,x,label] of [['dc',150,'DC 프로젝트'],['aidc',1700,'AIDC 프로젝트'],['unresolved',2010,'DC/AIDC 미확인']]){
+        const group=ordered(leaves.filter(n=>(n.project_category||'unresolved')===category));
+        if(group.length||category!=='unresolved')headings.push({x:x-110,y:55,text:`${label} · ${group.length}`});
+        group.forEach((n,i)=>points.set(n.id,{x,y:170+i*118,w:236,h:90}));
+      }
+      headings.push({x:530,y:55,text:'기업 클릭 → 해당 기업의 1단계 관계사'},{x:820,y:100,text:'선택 기업 중심 · 바깥쪽 프로젝트 근거 연결'});
     }else if(mode==='company'){
       const companies=ordered(nodes.filter(n=>n.type==='company'));
       const center=companies.find(n=>n.id===centerId||n.entity_id===centerId)||companies[0];
@@ -100,7 +106,7 @@
     function viewState(){const {w,h}=dimensions();return {...view,centerX:(w/2-view.x)/view.k,centerY:(h/2-view.y)/view.k,width:w,height:h};}
     function transform(){if(scene)scene.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.k})`);scaleLabel.textContent=`${Math.round(view.k*100)}%`;root.dataset.zoom=String(view.k);if(root.isConnected){const state=viewState();remember(str(config.viewKey||config.stateKey),state);if(typeof config.onViewChange==='function')config.onViewChange(state);}}
     function restoreView(state){if(!state)return false;const {w,h}=dimensions(),cx=Number.isFinite(Number(state.centerX))?Number(state.centerX):0,cy=Number.isFinite(Number(state.centerY))?Number(state.centerY):0;view.k=Math.max(.01,Math.min(3.5,number(state.k)||1));view.x=w/2-cx*view.k;view.y=h/2-cy*view.k;transform();return true;}
-    function fit(all=false){if(!positions)return;const {w,h}=dimensions(),projectCenter=config.centerId?data.nodes.find(n=>(n.type==='project'||n.is_named_candidate)&&(n.id===config.centerId||n.entity_id===config.centerId)):null,isFocus=['company','company-network'].includes(config.mode)||Boolean(projectCenter),minimum=config.mode==='company-network'?Math.min(.85,(w-44)/900):isFocus ? .85 : .75,scale=Math.min((w-70)/positions.width,(h-60)/positions.height,1.15);view.k=all?Math.max(.01,scale):Math.max(minimum,scale);view.x=(w-positions.width*view.k)/2;view.y=(h-positions.height*view.k)/2;if(!all&&scale<minimum&&isFocus){const center=projectCenter||data.nodes.find(n=>n.id===config.centerId||n.entity_id===config.centerId)||data.nodes.find(n=>n.type==='company')||data.nodes[0];const p=center&&positions.points.get(center.id);if(p){view.x=w/2-p.x*view.k;view.y=h/2-p.y*view.k;}}transform();}
+    function fit(all=false){if(!positions)return;const {w,h}=dimensions(),projectCenter=config.centerId?data.nodes.find(n=>(n.type==='project'||n.is_named_candidate)&&(n.id===config.centerId||n.entity_id===config.centerId)):null,isFocus=['company','company-network'].includes(config.mode)||Boolean(projectCenter),minimum=config.mode==='company-network'?Math.min(.55,(w-44)/2250):isFocus ? .85 : .75,scale=Math.min((w-70)/positions.width,(h-60)/positions.height,1.15);view.k=all?Math.max(.01,scale):Math.max(minimum,scale);view.x=(w-positions.width*view.k)/2;view.y=(h-positions.height*view.k)/2;if(!all&&scale<minimum&&isFocus){const center=projectCenter||data.nodes.find(n=>n.id===config.centerId||n.entity_id===config.centerId)||data.nodes.find(n=>n.type==='company')||data.nodes[0];const p=center&&positions.points.get(center.id);if(p){view.x=w/2-p.x*view.k;view.y=h/2-p.y*view.k;}}transform();}
     function zoom(factor,point){const {w,h}=dimensions(),at=point||{x:w/2,y:h/2},previous=view.k;view.k=Math.max(.01,Math.min(3.5,view.k*factor));view.x=at.x-(at.x-view.x)*view.k/previous;view.y=at.y-(at.y-view.y)*view.k/previous;transform();}
     function focusSelection(){const id=selection?.kind==='node'?selection.id:(config.centerId||config.selectedId);const node=data.nodes.find(n=>n.id===id||n.entity_id===id)||data.nodes.find(n=>n.type===(config.mode==='company'?'company':'project'))||data.nodes[0];if(!node)return;const p=positions.points.get(node.id),{w,h}=dimensions();view.k=Math.max(.8,Math.min(1.2,view.k));view.x=w/2-p.x*view.k;view.y=h/2-p.y*view.k;transform();}
     function select(kind,item){
@@ -137,7 +143,7 @@
         if(isUnread)group.append(svg('rect',{x:-6,y:-6,width:p.w+12,height:p.h+12,rx:p.h>90?22:17,class:'atlas-network-unread-halo'}));
         group.append(svg('rect',{width:p.w,height:p.h,rx:p.center?16:12,class:'atlas-network-node-shape'}),svg('path',{d:`M${p.center?18:14} 1H${p.w-(p.center?18:14)}`,class:'atlas-network-node-accent'}),svg('circle',{cx:15,cy:17,r:3.2,fill:isEmpty?'#627587':color(node)}));
         const count=number(node.article_count??articleIds(node).length),countLabel=isEmpty?'—':`${count.toLocaleString('ko-KR')}개`,pillWidth=Math.max(30,[...countLabel].length*6+13);
-        const typeLabel=isCluster?`묶음 · 원본 ${node.clustered_ids.length}개`:node.type==='role'?(isEmpty?'역할 근거 없음':'명시된 참여 역할'):node.type==='company'&&node.profile_categories?.length?`${(node.profile_categories[0]==='unknown'?'성격 미확인':ROLES.find(([id])=>id===node.profile_categories[0])?.[1])||'성격 미확인'} · 기업 성격`:(TYPES[node.type]||'근거 자료');
+        const typeLabel=isCluster?`묶음 · 원본 ${node.clustered_ids.length}개`:node.project_category?`${node.project_category_label}${node.is_named_candidate?' · 사업명 후보':' · 등록 사업'}`:node.type==='role'?(isEmpty?'역할 근거 없음':'명시된 참여 역할'):node.type==='company'&&node.profile_categories?.length?`${(node.profile_categories[0]==='unknown'?'성격 미확인':ROLES.find(([id])=>id===node.profile_categories[0])?.[1])||'성격 미확인'} · 기업 성격`:(TYPES[node.type]||'근거 자료');
         const visibleType=p.h>90?typeLabel:wrap(typeLabel,Math.max(3,(p.w-pillWidth-46)/9),1)[0];group.append(svg('text',{x:25,y:20,class:'atlas-network-node-type'},visibleType));
         const lines=wrap(name(node),(p.w-26)/(p.center?17:12),2);lines.forEach((line,i)=>group.append(svg('text',{x:13,y:p.center?46+i*21:40+i*15,class:'atlas-network-node-label'},line)));
         if(p.h>90){group.append(svg('path',{d:`M13 ${p.h-32}H${p.w-13}`,class:'atlas-network-center-divider'}),svg('text',{x:13,y:p.h-13,class:'atlas-network-node-count'},`연결 기사 ${count.toLocaleString('ko-KR')}개`));}else{group.append(svg('rect',{x:p.w-pillWidth-8,y:7,width:pillWidth,height:19,rx:6,class:'atlas-network-count-pill'}),svg('text',{x:p.w-14,y:20,class:'atlas-network-node-count','text-anchor':'end'},countLabel));}
