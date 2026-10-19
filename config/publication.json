@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "repository": "dahanpark/aidc",
+  "visibility": "public",
+  "branch": "main",
+  "source_policy": "Publish runtime code, tests, public official fixtures and public news/company reference settings only. Exclude business documents, decision/configuration charters, local revision ledgers and operational records.",
+  "include_directories": [
+    "backend",
+    "frontend",
+    "tests",
+    "fixtures"
+  ],
+  "include_files": [
+    "run_atlas.py",
+    "config/news_sources.json",
+    "config/company_profile_registry.json",
+    "config/publication.json",
+    "scripts/publish_github.py",
+    "scripts/start_atlas.ps1",
+    "scripts/stop_atlas.ps1",
+    "scripts/create_shortcut.ps1",
+    "frontend/assets/maps/world.geojson",
+    "frontend/assets/maps/korea.geojson",
+    "frontend/assets/maps/positions.json"
+  ],
+  "allowed_extensions": [
+    ".py",
+    ".js",
+    ".cjs",
+    ".css",
+    ".html",
+    ".md",
+    ".json",
+    ".csv",
+    ".ps1",
+    ".geojson"
+  ],
+  "excluded_roots": [
+    "store",
+    "runtime",
+    "backups",
+    "exports",
+    "derived_index",
+    "output",
+    "submission",
+    "data/provenance",
+    ".git",
+    ".agents",
+    "docs"
+  ],
+  "excluded_file_names": [
+    ".env"
+  ],
+  "preserve_local_data": true
+}

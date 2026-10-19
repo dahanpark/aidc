@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light"><meta name="theme-color" content="#0d1b2e">
+  <title>AIDC ATLAS · 사업 인텔리전스</title><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/atlas_graph.css"><link rel="stylesheet" href="/atlas_map.css">
+</head>
+<body>
+<a class="skip" href="#main">본문으로 이동</a>
+<aside class="rail" aria-label="주 메뉴">
+  <a class="atlas-symbol" href="#overview" aria-label="아틀라스 홈"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 31 20 7l14 24M12 22h16M20 7v25"/><circle cx="20" cy="7" r="3"/><circle cx="6" cy="31" r="3"/><circle cx="34" cy="31" r="3"/></svg></a>
+  <nav id="navigation">
+    <button data-view="overview" class="nav active" aria-label="DASHBOARD · 범위별 종합" title="DASHBOARD · 범위별 종합"><span aria-hidden="true">◈</span><small>DASHBOARD</small></button>
+    <button data-view="companies" class="nav" aria-label="COMPANY · 기업 중심 관계" title="COMPANY · 기업 중심 관계"><span aria-hidden="true">◉</span><small>COMPANY</small></button>
+    <button data-view="projects" class="nav" aria-label="PROJECT · 프로젝트 중심 관계" title="PROJECT · 프로젝트 중심 관계"><span aria-hidden="true">▤</span><small>PROJECT</small></button>
+    <button data-view="regions" class="nav" aria-label="국내 도시와 해외 국가별 정보" title="국내 도시와 해외 국가별 정보"><span aria-hidden="true">◎</span><small>LOCATION</small></button>
+    <button data-view="news" class="nav" aria-label="기사 뉴스 센터" title="기사 뉴스 센터"><span aria-hidden="true">▧</span><small>NEWS</small></button>
+    <button data-view="synthesis" class="nav" aria-label="기사 종합 피벗 분석" title="기사 종합 피벗 분석"><span aria-hidden="true">▦</span><small>SYNTHESIS</small></button>
+    <button data-view="bookmarks" class="nav" aria-label="스크랩" title="스크랩"><span aria-hidden="true">◇</span><small>SCRAP</small></button>
+    <button data-view="notifications" class="nav" aria-label="알림함" title="알림함"><span aria-hidden="true">♧</span><small>ALERTS</small><i id="noticeCount" hidden></i></button>
+  </nav>
+  <button data-view="settings" class="nav rail-bottom" aria-label="환경 설정" title="환경 설정"><span aria-hidden="true">⚙</span><small>SETTINGS</small></button>
+  <span class="rail-version" title="v0.4 · REV008">REV008</span>
+</aside>
+<div class="workspace">
+  <header class="topbar">
+    <a class="wordmark" href="#overview">AIDC <strong>ATLAS</strong><span>OPPORTUNITY & GLOBAL INTELLIGENCE</span></a>
+    <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="사업·기업·지역·근거 검색" aria-label="사업, 기업, 지역, 근거 검색"><kbd>/</kbd></label>
+    <span class="connection" id="connection"><i></i>로컬 연결 중</span>
+    <button id="refresh" class="icon-button" title="저장된 자료 새로고침" aria-label="저장된 자료 새로고침">↻</button>
+  </header>
+  <div class="mode-banner"><span class="status-dot"></span><strong>공개 기사 + 검증 근거 기반 로컬 파일럿</strong><span>실시간 공개 메타데이터 · 고정 검증 사례</span><span class="banner-tail">기사 본문 미확인 · 사내 AI 미연결</span></div>
+  <main id="main" tabindex="-1">
+    <section class="contextbar" aria-label="탐색 조건"><div class="scope-tabs" id="scopeTabs" role="group" aria-label="수집 범위"><button data-scope="kr-dc" aria-pressed="false">국내 DC</button><button class="active" data-scope="kr-ai" aria-pressed="true">국내 AIDC</button><button data-scope="global-ai" aria-pressed="false">해외 AIDC</button><details class="scope-more"><summary>전체·미분류</summary><div><button data-scope="all" aria-pressed="false">전체 <span id="totalScope">기사 —</span></button><button data-scope="unresolved" aria-pressed="false">분류 미확인</button></div></details></div><div class="context-right"><span class="asof" id="asof" hidden>기준 시점 확인 중</span><label class="switch-label"><input id="includeRead" type="checkbox"><span class="switch"></span>읽은 변화 포함</label><div class="heading-actions"><button id="importOpen" class="button">＋ 자료 등록</button><button id="exportOpen" class="button primary">내보내기 <span aria-hidden="true">↗</span></button></div></div></section>
+    <section class="news-searchbar" aria-label="기사 검색과 수집">
+      <label><span>기사 기간 · 기본 3년</span><select id="newsPeriod" aria-label="기사 기간"><option value="3y" selected>3년</option><option value="1y">1년</option><option value="6m">6개월</option><option value="3m">3개월</option><option value="1m">1개월</option><option value="2w">2주</option><option value="1w">1주</option><option value="3d">3일</option><option value="1d">하루</option></select></label>
+      <label class="news-query"><span>기사 검색어</span><input id="newsQuery" type="search" placeholder="기업·사업·기술 키워드" aria-label="기사 검색어"></label>
+      <button id="newsSearch" class="button">검색</button>
+      <details class="advanced-query"><summary>상세 검색·수집</summary><div>      <label><span>해외 · 나라</span><select id="newsCountry" aria-label="해외 나라"><option value="">전체 나라</option></select></label>
+      <label><span>국내 · 도시</span><select id="newsCity" aria-label="국내 도시"><option value="">전체 도시</option></select></label>
+<button id="newsCollect" class="button primary">기간 기사 수집 ↻</button></div></details>
+      <div class="news-search-note" id="newsFilterNote">기간·범위·나라·도시는 기사 목록·종합 요약·통합표·내보내기에 함께 적용됩니다.</div>
+    </section>
+    <div id="errorBanner" class="error-banner" role="alert" hidden></div>
+    <div id="loading" class="loading" role="status"><span class="loader"></span><span id="loadingMessage">JSON 저장소에서 탐색 공간을 준비하고 있습니다.</span></div>
+    <div id="viewContainer" hidden></div>
+    <footer><span>AIDC ATLAS <b>·</b> 사업과 기업의 미래를 연결하는 인텔리전스</span><span id="snapshot">JSON 원본 / 로컬 실행</span></footer>
+  </main>
+</div>
+<dialog id="modal" aria-labelledby="modalTitle"><div class="modal-head"><div><p class="eyebrow">AIDC ATLAS</p><h2 id="modalTitle"></h2></div><button id="modalClose" class="icon-button" aria-label="대화상자 닫기">✕</button></div><div id="modalContent"></div></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="/atlas_graph.js" defer></script><script src="/atlas_map.js" defer></script><script src="/atlas_analysis.js" defer></script><script src="/atlas_workspaces.js" defer></script><script src="/app.js" defer></script>
+</body></html>

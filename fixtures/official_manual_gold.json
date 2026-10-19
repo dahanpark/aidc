@@ -1,0 +1,489 @@
+{
+  "fixture_version": "1.0",
+  "mode": "fixture_mock",
+  "verified_at": "2026-10-16",
+  "description": "공식 기사 3개를 사람이 확인해 수동 gold로 전사. AI 추출/실시간 수집 결과가 아님. 현재 사업 상태를 확인한 스냅샷이 아니라 과거 발표 당시 데이터.",
+  "articles": [
+    {
+      "id": "art-ulsan-20250829",
+      "title": "SK AI 데이터센터 울산 기공식 개최",
+      "url": "https://news.sktelecom.com/214708",
+      "publisher": "SK텔레콤 뉴스룸",
+      "published_at": "2025-08-29",
+      "event_date": "2025-08-29",
+      "access_status": "official_page_checked_2026-10-16",
+      "summary": "SK텔레콤은 SK에코플랜트·AWS 등과 울산 AI 데이터센터 기공식을 개최했다고 발표했다. 해당 발표 당시의 상태만 보존한다.",
+      "evidence_excerpt": "기공식을 개최했다고 29일 밝혔다.",
+      "mode": "fixture_mock",
+      "project_ids": [
+        "prj-ulsan"
+      ],
+      "checked_at": "2026-10-16",
+      "source_kind": "official_press_release"
+    },
+    {
+      "id": "art-oracle-20250722",
+      "title": "Stargate advances with 4.5 GW partnership with Oracle",
+      "url": "https://openai.com/index/stargate-advances-with-partnership-with-oracle/",
+      "publisher": "OpenAI",
+      "published_at": "2025-07-22",
+      "event_date": "2025-07-22",
+      "access_status": "official_page_checked_2026-10-16",
+      "summary": "OpenAI와 Oracle은 미국 Stargate 데이터센터 추가 용량 4.5GW 개발 협약을 발표했다. 개별 부지·IT부하·수전 확정치로 해석하지 않는다.",
+      "evidence_excerpt": "4.5 gigawatts of additional Stargate data center capacity",
+      "mode": "fixture_mock",
+      "project_ids": [
+        "prj-stargate-us-oracle"
+      ],
+      "checked_at": "2026-10-16",
+      "source_kind": "official_announcement"
+    },
+    {
+      "id": "art-uae-20250522",
+      "title": "Introducing Stargate UAE",
+      "url": "https://openai.com/index/introducing-stargate-uae/",
+      "publisher": "OpenAI",
+      "published_at": "2025-05-22",
+      "event_date": "2025-05-22",
+      "access_status": "official_page_checked_2026-10-16",
+      "summary": "OpenAI는 아부다비 Stargate UAE 1GW 클러스터와 그중 200MW의 2026년 가동 예상을 발표했다. 현재 가동 여부는 확인하지 않았다.",
+      "evidence_excerpt": "A 1GW Stargate UAE cluster in Abu Dhabi with 200MW expected to go live in 2026",
+      "mode": "fixture_mock",
+      "project_ids": [
+        "prj-stargate-uae",
+        "prj-stargate-uae-phase1"
+      ],
+      "checked_at": "2026-10-16",
+      "source_kind": "official_announcement"
+    }
+  ],
+  "projects": [
+    {
+      "id": "prj-ulsan",
+      "name": "SK AI 데이터센터 울산",
+      "scope": "kr-ai",
+      "country": "KR",
+      "location": "울산광역시",
+      "entity_level": "site",
+      "parent_id": null,
+      "status": "기공식 개최 · 2025-08-29 발표 당시",
+      "summary": [
+        "2025년 8월 29일 공식 발표 당시 울산 AI 전용 데이터센터 기공식이 개최됐다.",
+        "SK텔레콤·SK에코플랜트·AWS가 참여한 사업으로 발표됐다.",
+        "SK에코플랜트는 인프라 구축 담당으로 명시됐다.",
+        "GW급 클러스터 확장 MOU는 향후 구상이며 현재 완공·가동을 뜻하지 않는다."
+      ],
+      "capacities": [],
+      "milestones": [
+        {
+          "kind": "groundbreaking",
+          "date": "2025-08-29",
+          "precision": "day",
+          "basis": "announced_actual",
+          "article_id": "art-ulsan-20250829"
+        }
+      ],
+      "company_ids": [
+        "co-skt",
+        "co-skecoplant",
+        "co-aws"
+      ],
+      "article_ids": [
+        "art-ulsan-20250829"
+      ],
+      "latest_change_at": "2025-08-29",
+      "importance": 95,
+      "importance_reasons": [
+        "공식 기공식 발표",
+        "국내 AIDC 공개 사업 신호"
+      ],
+      "classification": "공식 발표 당시 스냅샷 · fixture_mock 재생",
+      "validation_state": "manual_gold_mock"
+    },
+    {
+      "id": "prj-stargate-us-oracle",
+      "name": "Stargate 미국 Oracle 추가 개발 프로그램",
+      "scope": "global-ai",
+      "country": "US",
+      "location": "미국 · 개별 부지 미확정",
+      "entity_level": "program",
+      "parent_id": null,
+      "status": "개발 협약 발표 · 2025-07-22 당시",
+      "summary": [
+        "2025년 7월 22일 OpenAI와 Oracle이 미국 추가 개발 협약을 발표했다.",
+        "발표 용량은 여러 부지에 걸친 4.5GW 프로그램으로 관리한다.",
+        "기존 Abilene와 별도 추가분이며 기존 부지와 중복 합산하지 않는다.",
+        "원문은 이 값을 IT부하 또는 수전 용량으로 특정하지 않아 발표 용량으로만 보존한다."
+      ],
+      "capacities": [],
+      "milestones": [
+        {
+          "kind": "development_agreement",
+          "date": "2025-07-22",
+          "precision": "day",
+          "basis": "announced_actual",
+          "article_id": "art-oracle-20250722"
+        }
+      ],
+      "company_ids": [
+        "co-openai",
+        "co-oracle"
+      ],
+      "article_ids": [
+        "art-oracle-20250722"
+      ],
+      "latest_change_at": "2025-07-22",
+      "importance": 90,
+      "importance_reasons": [
+        "공식 신규 개발 협약",
+        "여러 부지의 프로그램 범위"
+      ],
+      "classification": "공식 발표 당시 스냅샷 · fixture_mock 재생",
+      "validation_state": "manual_gold_mock"
+    },
+    {
+      "id": "prj-stargate-uae",
+      "name": "Stargate UAE 아부다비 클러스터 프로그램",
+      "scope": "global-ai",
+      "country": "AE",
+      "location": "Abu Dhabi",
+      "entity_level": "program",
+      "parent_id": null,
+      "status": "파트너십·1GW 계획 발표 · 2025-05-22 당시",
+      "summary": [
+        "2025년 5월 22일 OpenAI가 아부다비 Stargate UAE 파트너십을 발표했다.",
+        "전체 1GW 계획은 프로그램 범위이며 현재 운영 용량이 아니다.",
+        "G42·Oracle·NVIDIA·Cisco·SoftBank는 발표문에 파트너로 명시됐다.",
+        "하위 200MW는 전체 계획의 일부이므로 1GW와 더하지 않는다."
+      ],
+      "capacities": [],
+      "milestones": [
+        {
+          "kind": "partnership_announced",
+          "date": "2025-05-22",
+          "precision": "day",
+          "basis": "announced_actual",
+          "article_id": "art-uae-20250522"
+        }
+      ],
+      "company_ids": [
+        "co-openai",
+        "co-g42",
+        "co-oracle",
+        "co-nvidia",
+        "co-cisco",
+        "co-softbank"
+      ],
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "latest_change_at": "2025-05-22",
+      "importance": 85,
+      "importance_reasons": [
+        "공식 해외 신규 계획",
+        "프로그램과 하위 단계 구분"
+      ],
+      "classification": "공식 발표 당시 스냅샷 · fixture_mock 재생",
+      "validation_state": "manual_gold_mock"
+    },
+    {
+      "id": "prj-stargate-uae-phase1",
+      "name": "Stargate UAE 최초 200MW 계획분",
+      "scope": "global-ai",
+      "country": "AE",
+      "location": "Abu Dhabi",
+      "entity_level": "phase",
+      "parent_id": "prj-stargate-uae",
+      "status": "2026년 가동 예상 · 실제 가동 미확인",
+      "summary": [
+        "2025년 5월 발표문은 전체 클러스터 중 200MW의 2026년 가동을 예상했다.",
+        "이 부분은 상위 1GW에 포함되는 하위 단계로 모델링했다.",
+        "2026년이라는 연도만 발표됐으며 월·일은 생성하지 않는다.",
+        "예정 시점이 도래했어도 실제 운영으로 자동 변경하지 않는다."
+      ],
+      "capacities": [],
+      "milestones": [
+        {
+          "kind": "expected_operation",
+          "date": "2026",
+          "precision": "year",
+          "basis": "planned",
+          "article_id": "art-uae-20250522"
+        }
+      ],
+      "company_ids": [],
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "latest_change_at": "2025-05-22",
+      "importance": 80,
+      "importance_reasons": [
+        "예정 가동과 실제 가동 구분",
+        "상위 용량에 포함되는 하위 단계"
+      ],
+      "classification": "공식 발표 당시 스냅샷 · 포함 단계 · fixture_mock 재생",
+      "validation_state": "manual_gold_mock"
+    }
+  ],
+  "companies": [
+    {
+      "id": "co-skt",
+      "name": "SK텔레콤",
+      "country": "KR",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-ulsan"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-skecoplant",
+      "name": "SK에코플랜트",
+      "country": "KR",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-ulsan"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-aws",
+      "name": "Amazon Web Services",
+      "country": "US",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-ulsan"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-openai",
+      "name": "OpenAI",
+      "country": "US",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-stargate-us-oracle",
+        "prj-stargate-uae"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-oracle",
+      "name": "Oracle",
+      "country": "US",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-stargate-us-oracle",
+        "prj-stargate-uae"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-g42",
+      "name": "G42",
+      "country": "AE",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-stargate-uae"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-nvidia",
+      "name": "NVIDIA",
+      "country": "US",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-stargate-uae"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-cisco",
+      "name": "Cisco",
+      "country": "US",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-stargate-uae"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    },
+    {
+      "id": "co-softbank",
+      "name": "SoftBank",
+      "country": "JP",
+      "role": "공식 발표에 명시된 사업 참여자",
+      "project_ids": [
+        "prj-stargate-uae"
+      ],
+      "summary": "공식 발표의 참여 관계만 반영. 개별 계약·설계·시공 역할은 명시된 경우에만 구분."
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-us-45gw",
+      "project_id": "prj-stargate-us-oracle",
+      "article_id": "art-oracle-20250722",
+      "predicate": "announced_capacity",
+      "value": 4.5,
+      "unit": "GW",
+      "scope": "program",
+      "basis": "planned",
+      "event_date": "2025-07-22",
+      "evidence_excerpt": "4.5 gigawatts",
+      "validation_state": "manual_gold_verified",
+      "metric_note": "원문이 IT부하/수전/발전을 특정하지 않은 발표 용량"
+    },
+    {
+      "id": "claim-uae-1gw",
+      "project_id": "prj-stargate-uae",
+      "article_id": "art-uae-20250522",
+      "predicate": "announced_capacity",
+      "value": 1,
+      "unit": "GW",
+      "scope": "program",
+      "basis": "planned",
+      "event_date": "2025-05-22",
+      "evidence_excerpt": "1GW",
+      "validation_state": "manual_gold_verified",
+      "metric_note": "원문이 IT부하/수전/발전을 특정하지 않은 발표 용량"
+    },
+    {
+      "id": "claim-uae-200mw",
+      "project_id": "prj-stargate-uae-phase1",
+      "article_id": "art-uae-20250522",
+      "predicate": "announced_capacity",
+      "value": 200,
+      "unit": "MW",
+      "scope": "phase",
+      "basis": "planned",
+      "event_date": "2025-05-22",
+      "evidence_excerpt": "200MW",
+      "validation_state": "manual_gold_verified",
+      "metric_note": "원문이 IT부하/수전/발전을 특정하지 않은 발표 용량"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel-prj-ulsan-co-skt",
+      "project_id": "prj-ulsan",
+      "company_id": "co-skt",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-ulsan-20250829"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-ulsan-co-skecoplant",
+      "project_id": "prj-ulsan",
+      "company_id": "co-skecoplant",
+      "role": "인프라 구축",
+      "article_ids": [
+        "art-ulsan-20250829"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-ulsan-co-aws",
+      "project_id": "prj-ulsan",
+      "company_id": "co-aws",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-ulsan-20250829"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-us-oracle-co-openai",
+      "project_id": "prj-stargate-us-oracle",
+      "company_id": "co-openai",
+      "role": "공동 개발 협약",
+      "article_ids": [
+        "art-oracle-20250722"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-us-oracle-co-oracle",
+      "project_id": "prj-stargate-us-oracle",
+      "company_id": "co-oracle",
+      "role": "공동 개발 협약",
+      "article_ids": [
+        "art-oracle-20250722"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-uae-co-openai",
+      "project_id": "prj-stargate-uae",
+      "company_id": "co-openai",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-uae-co-g42",
+      "project_id": "prj-stargate-uae",
+      "company_id": "co-g42",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-uae-co-oracle",
+      "project_id": "prj-stargate-uae",
+      "company_id": "co-oracle",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-uae-co-nvidia",
+      "project_id": "prj-stargate-uae",
+      "company_id": "co-nvidia",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-uae-co-cisco",
+      "project_id": "prj-stargate-uae",
+      "company_id": "co-cisco",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    },
+    {
+      "id": "rel-prj-stargate-uae-co-softbank",
+      "project_id": "prj-stargate-uae",
+      "company_id": "co-softbank",
+      "role": "공식 사업 파트너",
+      "article_ids": [
+        "art-uae-20250522"
+      ],
+      "directness": "explicit",
+      "claim_ids": []
+    }
+  ]
+}

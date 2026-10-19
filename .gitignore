@@ -1,0 +1,13 @@
+store/
+runtime/
+backups/
+exports/
+derived_index/
+output/
+.env
+.env.*
+*.local.json
+*.lnk
+__pycache__/
+*.py[cod]
+node_modules/

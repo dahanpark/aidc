@@ -1,0 +1,370 @@
+{
+  "schema_version": 1,
+  "version": "2026-10-19.1",
+  "scope": "company_business_nature_only",
+  "note": "공식 자료의 일반 사업 성격이다. 특정 사업의 참여·직접 계약·PF 참여·현재 사업 상태를 확정하지 않는다. 이름은 정확한 별칭으로만 일치하며 자회사에 전파하지 않는다.",
+  "companies": [
+    {
+      "name": "Equinix",
+      "aliases": [
+        "에퀴닉스"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "글로벌 데이터센터·상호연결 서비스를 제공한다.",
+      "source_url": "https://www.equinix.com/about",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Digital Realty",
+      "aliases": [
+        "디지털리얼티",
+        "디지털 리얼티"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "데이터센터 플랫폼과 코로케이션 서비스를 제공한다.",
+      "source_url": "https://www.digitalrealty.com/about",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Vertiv",
+      "aliases": [
+        "버티브"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "전력·냉각·IT 인프라와 서비스를 제공한다.",
+      "source_url": "https://www.vertiv.com/en-asia/about/about-us/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Schneider Electric",
+      "aliases": [
+        "슈나이더일렉트릭",
+        "슈나이더 일렉트릭"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "UPS·랙·냉각을 포함한 데이터센터 설비를 제공한다.",
+      "source_url": "https://www.se.com/ww/en/work/solutions/for-business/data-centers-and-networks/enterprise/corporate-data-center.jsp",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "삼성SDS",
+      "aliases": [
+        "Samsung SDS"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "데이터센터 설계·구축·운영 서비스를 제공한다. 건설공사의 특정 시공 계약을 뜻하지 않는다.",
+      "source_url": "https://www.samsungsds.com/kr/data-center-service/data-center-service.html",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "LG CNS",
+      "aliases": [
+        "LG씨엔에스"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "국내외 데이터센터를 운영하며 데이터센터 서비스를 제공한다.",
+      "source_url": "https://connect.lgcns.com/language-masters/en/service/modern-it-infra-on-cloud/data-center",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "kt cloud",
+      "aliases": [
+        "케이티클라우드",
+        "KT클라우드",
+        "KT cloud"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "데이터센터 설계·구축·운영(DBO) 서비스를 제공한다. KT 모회사 전체로 확대하지 않는다.",
+      "source_url": "https://www.ktcloud.com/service/idc",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "NVIDIA",
+      "aliases": [
+        "엔비디아"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "데이터센터용 GPU·네트워크 장비와 플랫폼을 제공한다.",
+      "source_url": "https://www.nvidia.com/en-us/networking/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "SK텔레콤",
+      "aliases": [
+        "SK Telecom",
+        "SKT"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "AI 데이터센터 운영 솔루션과 GPU 데이터센터 서비스를 제공한다.",
+      "source_url": "https://www.sktelecom.com/img/kor/annual/20250627/SK_Telecom_Annual_Report_2024_F.pdf",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Amazon Web Services",
+      "aliases": [
+        "AWS",
+        "아마존웹서비스",
+        "아마존 웹서비스"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "AWS는 가용성 높은 데이터센터를 운영한다. Amazon 모회사 전체로 확대하지 않는다.",
+      "source_url": "https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions-availability-zones.html",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Microsoft",
+      "aliases": [
+        "마이크로소프트"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "Microsoft Cloud를 위한 글로벌 데이터센터 인프라를 운영한다.",
+      "source_url": "https://datacenters.microsoft.com/home/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Google",
+      "aliases": [
+        "구글"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "Google 데이터센터 인프라를 운영한다.",
+      "source_url": "https://datacenters.google/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "CoreWeave",
+      "aliases": [
+        "코어위브"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "AI 클라우드와 데이터센터 기반 컴퓨팅 인프라 서비스를 제공한다.",
+      "source_url": "https://coreweave.com/about-us",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Cisco",
+      "aliases": [
+        "시스코",
+        "시스코시스템즈",
+        "Cisco Systems"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "스위치·컴퓨팅·데이터센터 네트워크 장비를 제공한다.",
+      "source_url": "https://www.cisco.com/site/us/en/solutions/data-center/index.html",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "LS일렉트릭",
+      "aliases": [
+        "LS ELECTRIC"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "변압기·배전·UPS 등 데이터센터 전력 솔루션을 제공한다.",
+      "source_url": "https://www.ls-electric.com/media/press/?c=359",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "효성중공업",
+      "aliases": [
+        "Hyosung Heavy Industries"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "변압기 등 전력 장비를 제조하며 데이터센터용 제품을 제공한다.",
+      "source_url": "https://www.hyosungheavyindustries.com/en/business/power-products/P010101",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Vantage Data Centers",
+      "aliases": [
+        "밴티지데이터센터",
+        "밴티지 데이터센터"
+      ],
+      "categories": [
+        "developer",
+        "operator"
+      ],
+      "description": "디지털 인프라를 개발·운영한다.",
+      "source_url": "https://vantage-dc.com/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Oracle",
+      "aliases": [
+        "오라클"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "글로벌 분산 클라우드 인프라와 서비스를 제공한다.",
+      "source_url": "https://www.oracle.com/cloud/distributed-cloud/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "DigitalBridge",
+      "aliases": [
+        "디지털브릿지"
+      ],
+      "categories": [
+        "financier"
+      ],
+      "description": "디지털 인프라 투자·자산운용 기업이다. 특정 PF의 주관·참여를 뜻하지 않는다.",
+      "source_url": "https://www.digitalbridge.com/about",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "KKR",
+      "aliases": [],
+      "categories": [
+        "financier"
+      ],
+      "description": "투자·자산운용 기업이다. 특정 PF의 주관·참여를 뜻하지 않는다.",
+      "source_url": "https://www.kkr.com/about",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "AMD",
+      "aliases": [],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "데이터센터용 GPU 가속기 제품을 제공한다.",
+      "source_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "HPE",
+      "aliases": [
+        "Hewlett Packard Enterprise"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "서버·컴퓨팅 인프라 장비를 제공한다.",
+      "source_url": "https://www.hpe.com/us/en/products/compute.html",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "Dell Technologies",
+      "aliases": [
+        "델 테크놀로지스",
+        "Dell"
+      ],
+      "categories": [
+        "equipment_supplier"
+      ],
+      "description": "서버 등 컴퓨팅 장비를 제공한다.",
+      "source_url": "https://www.dell.com/en-us/shop/dell-poweredge-servers/sc/servers",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "삼성물산",
+      "aliases": [
+        "Samsung C&T",
+        "삼성물산 건설부문"
+      ],
+      "categories": [
+        "contractor"
+      ],
+      "description": "건설부문이 건축·토목·플랜트 공사를 수행한다.",
+      "source_url": "https://www.secc.co.kr/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "SK에코플랜트",
+      "aliases": [
+        "SK ecoplant"
+      ],
+      "categories": [
+        "contractor",
+        "operator"
+      ],
+      "description": "AI 데이터센터 EPC·운영 솔루션을 제공한다.",
+      "source_url": "https://www.skecoplant.com/",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "희림",
+      "aliases": [
+        "희림종합건축사사무소",
+        "Heerim"
+      ],
+      "categories": [
+        "designer"
+      ],
+      "description": "건축 설계·CM/감리 서비스를 제공한다.",
+      "source_url": "https://www.heerim.com/data/bbsData/16418885171.pdf",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    },
+    {
+      "name": "신세계아이앤씨",
+      "aliases": [
+        "신세계I&C"
+      ],
+      "categories": [
+        "operator"
+      ],
+      "description": "코로케이션 데이터센터 서비스를 제공한다.",
+      "source_url": "https://shinsegae-inc.com/business/cloud/dataCenter.do",
+      "checked_at": "2026-10-19",
+      "source_type": "official_company"
+    }
+  ]
+}
