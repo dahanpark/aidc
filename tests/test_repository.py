@@ -27,6 +27,50 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(JsonRepository(self.root / 'store').snapshot(), snap)
         self.assertEqual(self.repo.transact(lambda ds: None)['generation'], snap['generation'])
 
+    def test_startup_initializer_uses_one_strict_read_and_preserves_record_versions(self):
+        original = self.add()
+        pointer = loads((self.repo.root / 'CURRENT.json').read_bytes())
+        old_manifest = loads((self.repo.root / 'generations' / pointer['generation'] / 'manifest.json').read_bytes())
+        strict_read = JsonRepository._read
+        with patch.object(JsonRepository, '_read', autospec=True, side_effect=strict_read) as reads:
+            initialized = JsonRepository(self.repo.root, initializer=lambda ds: ds.update(settings={'app': {'id': 'app', 'initialized': True}}))
+            # One active-generation read plus the unchanged strict verification
+            # of the newly staged generation when initialization changes data.
+            self.assertEqual(reads.call_count, 2)
+            self.assertEqual(sum(not call.args[1:] for call in reads.call_args_list), 1)
+        self.assertEqual(initialized.initial_snapshot['datasets']['projects'], original['datasets']['projects'])
+        self.assertEqual(initialized.snapshot(), initialized.initial_snapshot)
+        pointer = loads((self.repo.root / 'CURRENT.json').read_bytes())
+        new_manifest = loads((self.repo.root / 'generations' / pointer['generation'] / 'manifest.json').read_bytes())
+        self.assertEqual(new_manifest['datasets']['projects']['p']['sha256'], old_manifest['datasets']['projects']['p']['sha256'])
+        with patch.object(JsonRepository, '_read', autospec=True, side_effect=strict_read) as reads:
+            JsonRepository(self.repo.root, initializer=lambda ds: None)
+            self.assertEqual(reads.call_count, 1)
+
+    def test_invalid_initializer_does_not_activate_partial_data(self):
+        self.add()
+        pointer = (self.repo.root / 'CURRENT.json').read_bytes()
+        def invalid(ds):
+            ds['claims'] = {'bad': {'id': 'bad', 'project_id': 'missing'}}
+        with self.assertRaises(ValueError): JsonRepository(self.repo.root, initializer=invalid)
+        self.assertEqual((self.repo.root / 'CURRENT.json').read_bytes(), pointer)
+        self.assertNotIn('claims', self.repo.snapshot()['datasets'])
+
+    def test_concurrent_initializers_read_inside_the_same_writer_lock(self):
+        errors = []
+        def initialize():
+            def increment(ds):
+                app = ds.setdefault('settings', {}).setdefault('app', {'id': 'app', 'count': 0})
+                app['count'] += 1
+            try: JsonRepository(self.repo.root, initializer=increment)
+            except Exception as error: errors.append(type(error).__name__)
+        workers = [threading.Thread(target=initialize) for _ in range(2)]
+        for worker in workers: worker.start()
+        for worker in workers: worker.join(10)
+        self.assertEqual(errors, [])
+        self.assertTrue(all(not worker.is_alive() for worker in workers))
+        self.assertEqual(self.repo.snapshot()['datasets']['settings']['app']['count'], 2)
+
     def test_verified_callback_runs_after_activation_and_cannot_mutate_returned_snapshot(self):
         events = []
         def published(snapshot, pointer):

@@ -19,6 +19,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit, parse_qsl
 from .security import assert_safe_url
+from .network import request_bytes, error_info
 
 UTC = timezone.utc
 GOOGLE = 'https://news.google.com/rss/search'
@@ -62,29 +63,9 @@ def fetch_public_feed(url):
             ((parsed.hostname == 'news.google.com' and parsed.path == '/rss/search') or
              url in DIRECT_FEEDS)):
         raise ValueError('수집 제공자 허용목록 밖의 요청입니다.')
-    addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
-    if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
-        raise ValueError('공개 DNS 주소만 허용합니다.')
-    last_error = None
-    for address in addresses[:3]:
-        conn = http.client.HTTPSConnection(parsed.hostname, timeout=12, context=ssl.create_default_context())
-        try:
-            raw_socket = socket.create_connection(address[4][:2], timeout=12)
-            conn.sock = conn._context.wrap_socket(raw_socket, server_hostname=parsed.hostname)
-            target = urlunsplit(('', '', parsed.path, parsed.query, ''))
-            conn.request('GET', target, headers={'User-Agent':'AIDC-ATLAS/0.2 (local public RSS metadata reader)', 'Accept':'application/rss+xml, application/xml;q=0.9'})
-            response = conn.getresponse()
-            if response.status != 200:
-                raise ValueError('Feed HTTP ' + str(response.status))
-            content = response.read(MAX_BYTES + 1)
-            if len(content) > MAX_BYTES:
-                raise ValueError('Feed size limit exceeded')
-            return content
-        except (OSError, http.client.HTTPException) as error:
-            last_error = error
-        finally:
-            conn.close()
-    raise OSError('Public feed connection failed') from last_error
+    return request_bytes(url, allowed_hosts={'news.google.com', 'www.datacenterdynamics.com'},
+                         headers={'User-Agent':'AIDC-ATLAS/0.4 (local public RSS metadata reader)',
+                                  'Accept':'application/rss+xml, application/xml;q=0.9'}, max_bytes=MAX_BYTES)
 
 
 def _plain(value):
@@ -369,9 +350,11 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
             coverage.update(status=status, **diagnostics, accepted=len(accepted), provider_cap=capped)
             articles = accepted
         except (OSError, ValueError, ET.ParseError, http.client.HTTPException) as error:
+            detail = error_info(error) if not isinstance(error, (ValueError, ET.ParseError)) else {
+                'code': 'feed_validation', 'message': '공개 RSS 형식·제공사 허용목록 검증 실패'}
             pending.pop(0)
-            job['failed_windows'].append({**window,'error':type(error).__name__})
-            coverage.update(status='failed',error=type(error).__name__,error_message='공개 feed 요청 또는 XML 검증 실패',accepted=0)
+            job['failed_windows'].append({**window,'error':type(error).__name__,'error_code':detail['code']})
+            coverage.update(status='failed',error=type(error).__name__,error_code=detail['code'],error_message=detail['message'],accepted=0)
             save(coverage=coverage)
             continue
         save(articles, coverage)

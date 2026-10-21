@@ -5,7 +5,22 @@ different source records. A notification never creates another fact change.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+
+def recent_article(article, datasets, reference=None):
+    """Publication recency is independent of collection time and read state."""
+    days = datasets.get('settings', {}).get('app', {}).get('new_article_days', 30)
+    if not isinstance(days, int) or isinstance(days, bool) or not 1 <= days <= 365:
+        days = 30
+    try:
+        published = datetime.fromisoformat(article.get('published_at', '').replace('Z', '+00:00'))
+        end = datetime.fromisoformat(reference.replace('Z', '+00:00')) if reference else datetime.now(timezone.utc)
+        if published.tzinfo is None or end.tzinfo is None:
+            return False
+        return end - timedelta(days=days) <= published <= end
+    except (ValueError, TypeError, AttributeError, OverflowError):
+        return False
 
 
 def _article_companies(article, datasets):
@@ -22,7 +37,8 @@ def _article_companies(article, datasets):
 
 
 def _metric(items):
-    unread = [item for item in items if item['unread']]
+    unread = [item for item in items if item['unread'] and
+              (item['type'] != 'new_article' or item.get('is_recent', True))]
     return {'attention_ids': [item['id'] for item in items],
             'unread_attention_ids': [item['id'] for item in unread],
             'unread_count': len(unread),
@@ -62,6 +78,9 @@ def build_attention(snapshot, workspace):
             'unread': any(not ds.get('news_read_states', {}).get(update['id'], {}).get('read_at') for update in sources),
             'source_update_ids': sorted(update['id'] for update in sources), 'change_ids': [], 'notification_ids': [],
             'mode': article.get('mode', 'unverified'), 'is_verified_fact_change': False})
+        items[-1]['is_recent'] = recent_article(article, ds, workspace.get('filters', {}).get('end'))
+        items[-1]['published_at'] = article.get('published_at')
+        items[-1]['url'] = article.get('url')
     for change in ds.get('changes', {}).values():
         aids = sorted(set(change.get('article_ids', [])) & selected)
         if not aids:

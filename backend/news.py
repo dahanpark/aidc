@@ -7,6 +7,7 @@ from __future__ import annotations
 from calendar import monthrange
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from .attention import recent_article
 import hashlib
 import re
 import shlex
@@ -576,7 +577,9 @@ def build_workspace(snapshot, filters=None, as_of=None, *, include_catalog=False
         aid = article['id']
         update = updates_by_article.get(aid)
         unread = bool(update and not ds.get('news_read_states', {}).get(update['id'], {}).get('read_at'))
-        article['is_new'] = unread
+        article['is_unread'] = unread
+        article['is_recent'] = recent_article(article, ds, normalized['end'])
+        article['is_new'] = unread and article['is_recent']
         article['news_update_id'] = update['id'] if update else None
         cids, pids = _article_companies(article, projects), _article_projects(article)
         article['matched_companies'] = [{'id': cid, 'name': companies[cid].get('name', cid), 'match_status': 'name_match_candidate'} for cid in sorted(cids) if cid in companies]
@@ -622,7 +625,7 @@ def build_workspace(snapshot, filters=None, as_of=None, *, include_catalog=False
             'counts': {'articles': len(articles), 'publishers': len({a.get('publisher') for a in articles}),
                        'scope_counts':scope_counts,'related_articles_all_scopes':scope_counts['all'],'archive_articles':archive_articles,
                        'excluded_out_of_scope':excluded_topic,'topic_unresolved':uncertain_topic,
-                       'unread': sum(a['is_new'] for a in articles), 'companies': len({c['id'] for a in articles for c in a['matched_companies']}),
+                       'unread': sum(a['is_unread'] for a in articles), 'companies': len({c['id'] for a in articles for c in a['matched_companies']}),
                        'projects': len(matching_projects), 'excluded_invalid_date': invalid, 'excluded_future': future},
             'limitations': ['본문 미확인 기사는 공개 메타데이터 기반 종합입니다. 사내 AI 요약 품질은 미검증입니다.',
                             '이름 일치는 후보이며 사업 참여·계약·용량·진행 상태를 자동 확정하지 않습니다.',

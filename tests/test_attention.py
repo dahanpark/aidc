@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from backend.attention import build_attention, apply_acknowledgement, attention_annotation
+from backend.attention import build_attention, apply_acknowledgement, attention_annotation, recent_article
 from backend.ontology import build_ontology
 from backend.repository import JsonRepository
 
@@ -12,6 +12,23 @@ STAMP = '2026-10-17T01:00:00+00:00'
 
 
 class AttentionTests(unittest.TestCase):
+    def test_recency_is_publication_based_and_does_not_erase_old_unread(self):
+        ds = self.ds()
+        ds['articles']['a']['published_at'] = '2026-07-01T00:00:00Z'
+        ds['articles']['a']['collected_at'] = STAMP
+        workspace = self.workspace(ds)
+        workspace['filters'] = {'end': STAMP}
+        attention = build_attention(ds, workspace)
+        old = next(a for a in attention['items'] if a['id'] == 'new_article:a')
+        self.assertTrue(old['unread'])
+        self.assertFalse(old['is_recent'])
+        self.assertEqual(attention['counts']['unread_new_articles'], 2)
+        self.assertEqual(attention['graph']['companies']['c']['new_article_count'], 1)
+        self.assertEqual(ds['news_read_states'], {})
+        ds['settings'] = {'app': {'id': 'app', 'new_article_days': 150}}
+        self.assertTrue(recent_article(ds['articles']['a'], ds, STAMP))
+        self.assertFalse(recent_article({'published_at': '2027-01-01T00:00:00Z'}, ds, STAMP))
+
     def ds(self):
         articles = {aid: {'id': aid, 'title': 'AI 데이터센터 ' + aid, 'url': 'https://example.org/' + aid,
             'published_at': '2026-10-16T01:00:00+00:00', 'mode': 'live_metadata', 'project_ids': ['p'],

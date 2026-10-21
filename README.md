@@ -22,6 +22,18 @@ Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atla
 - LOCATION: 국내 AIDC 기본 범위, 지도 우선·오른쪽 조건/지역 기사
 - NEWS / SYNTHESIS / SCRAP / ALERTS / SETTINGS
 
+## 선택형 AI 분석과 회사망 연결 · REV013
+
+AI 미연결 상태에서도 수집·규칙 분류·관계도·스크랩·명시 확인을 사용합니다. 상단 **AI 연결**에서 OpenAI/Claude/Gemini 키를 이 PC의 Windows 보안 저장소에 등록하거나 전용 환경변수 참조를 사용합니다. 키 형식이 모호하면 제공사 하나를 선택하며 여러 회사에 키를 순차 전송하지 않습니다. 키 인증은 모델 목록 조회이고 기사 분석은 별도 선택 실행입니다.
+
+DASHBOARD 현황 아래 **동향 · 점검 요약**에서 선택/최신 공개 기사 표본의 근거 추출·동일 사업 후보·출처 연결 동향을 생성합니다. 기본 5기사/회·50호출/UTC일이며 SETTINGS에서 조정합니다. 전송 표본과 API 사용량 안내를 확인한 뒤 실행하며 금액 한도는 제공사 계정에서도 설정합니다. 본문·수동 메모·사내 링크는 전송하지 않습니다. 동일 사업 후보 확인은 자동 원본 병합이 아닙니다. 실제 계정 모델 접근성과 분석 품질은 별도로 확인해야 합니다.
+
+SETTINGS에서 제공사/모델/인증 시각/호출량/연결 해제/키 삭제를 관리합니다. 환경변수 연결은 `ATLAS_AI_OPENAI_KEY`, `ATLAS_AI_ANTHROPIC_KEY`, `ATLAS_AI_GOOGLE_KEY`만 참조하며 선택 삭제는 해당 프로세스·Windows 사용자 변수에 한정됩니다. `.env` 파일·머신 변수·제공사 키 폐기는 별도입니다.
+
+회사망에서 실패하면 SETTINGS의 **사내망 수집 연결 진단**을 실행합니다. 시스템/환경 HTTPS 프록시와 회사 CA 추가 신뢰(`ATLAS_CA_BUNDLE`/`SSL_CERT_FILE`)를 지원합니다. TLS 검증은 유지합니다. PAC·통합인증·방화벽 정책은 IT 담당자의 `HTTPS_PROXY`/CA/도메인 허용 설정이 필요할 수 있습니다. 수집은 `news.google.com:443`, `www.datacenterdynamics.com:443`, AI는 선택한 제공사의 API 도메인을 사용합니다.
+
+스크랩은 한 번 클릭으로 저장하고 SCRAP에서 기사 필터와 무관하게 전체 저장분을 확인합니다. 신규 기사 표시 기본 30일은 SETTINGS에서 변경하며, 관계도 배지 팝업에서 원문과 정확한 기사 확인 버튼을 사용합니다. 기존 미확인 알림은 보존합니다.
+
 ## 개발 자료와 다운로드 경로
 
 기획서·매뉴얼·스킬과 정의서·발표자료·시연영상은 [개발 산출물 릴리스](https://github.com/dahanpark/aidc/releases/tag/atlas-project-deliverables-20261020)에 공개했습니다. 각 파일은 아래 경로에서 내려받습니다.
@@ -39,7 +51,7 @@ Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atla
 |전체 파일 안내와 해시|[README.TXT](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/README.TXT) · [DELIVERABLES.json](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/DELIVERABLES.json)|
 |기획·스킬·매뉴얼·설명서 문서 ZIP|[AIDC.ATLAS.PROJECT.ZIP](https://github.com/dahanpark/aidc/releases/download/project-documents-20261019-ff855ff5/AIDC.ATLAS.PROJECT.ZIP)|
 
-HTML 파일은 내려받은 뒤 브라우저로 엽니다. PDF에서 동영상은 재생되지 않으므로 별도 MP4를 사용합니다. 문서와 발표자료는 기능 기준 REV012이며, 실행 소스는 main 브랜치를 사용합니다. 문서의 향후 개발 제안과 실제 구현·실측을 구분합니다.
+HTML 파일은 내려받은 뒤 브라우저로 엽니다. PDF에서 동영상은 재생되지 않으므로 별도 MP4를 사용합니다. 이 릴리스 문서·발표자료는 REV012 시점 보존본이며, 실행 소스와 REV013 AI/회사망 안내는 main 브랜치를 사용합니다. 문서의 향후 개발 제안과 실제 구현·실측을 구분합니다.
 
 ## 데이터와 한계
 
@@ -56,7 +68,7 @@ python -B run_atlas.py --check
 python -B -m unittest discover -s tests
 ```
 
-소스 REV: **REV012**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
+소스 REV: **REV013**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
 공개본은 별도 Git 이력이며 로컬 전체 Git 객체를 전송하지 않습니다. 로컬 폴더·과거 검증 결과에 의존하는 일부 운영 검증 스크립트는 공개본에서 사용할 수 없습니다.
 
 자동 소스 공개 범위는 `config/publication.json`에 명시합니다. 위 산출물은 사용자가 별도로 공개를 지시한 파일만 릴리스에 첨부했습니다. 그 밖의 업무 자료·개발 인계·의사결정 문서와 로컬 REV 대장은 전송하지 않습니다.

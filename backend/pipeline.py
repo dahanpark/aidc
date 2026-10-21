@@ -264,14 +264,20 @@ def _fixture(root):
     from pathlib import Path
     return json.loads((Path(root)/'fixtures/official_manual_gold.json').read_text(encoding='utf-8'))
 
+def initialize_datasets(ds, root):
+    """Called only within the repository writer transaction/initialization."""
+    fresh = not any(bool(value) for value in ds.values())
+    if fresh:
+        return _ingest(ds, _fixture(root), _now())
+    _defaults(ds, _now())
+    return {'status':'existing_state_preserved','count':0,'changes_count':0,'mode':'fixture_mock','live_collection':False}
+
+
 def bootstrap(repo,root):
     # Check again inside the write transaction to preserve state even under concurrent startup.
-    bundle=_fixture(root);result={}
+    result={}
     def mutate(ds):
-        fresh=not any(bool(value) for value in ds.values())
-        if fresh:result.update(_ingest(ds,bundle,_now()))
-        else:
-            _defaults(ds,_now());result.update({'status':'existing_state_preserved','count':0,'changes_count':0,'mode':'fixture_mock','live_collection':False})
+        result.update(initialize_datasets(ds, root))
     repo.transact(mutate)
     return result
 

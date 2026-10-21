@@ -61,7 +61,7 @@ class ConflictError(ValueError):
 
 
 class JsonRepository:
-    def __init__(self, root, publish_callback=None):
+    def __init__(self, root, publish_callback=None, *, initializer=None):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self._thread_lock = threading.RLock()
@@ -70,6 +70,7 @@ class JsonRepository:
         # strict read/validation contract of snapshot, transactions or backups.
         self.publish_callback = publish_callback
         self.publish_error = None
+        self.initial_snapshot = None
         with self._writer():
             if not (self.root / "CURRENT.json").exists():
                 if (self.root / "PREVIOUS.json").exists():
@@ -79,9 +80,20 @@ class JsonRepository:
                 else:
                     self._commit({}, parent=None)
             try:
-                self._read()
+                current = self._read()
             except (OSError, ValueError, KeyError, TypeError):
                 self._recover()
+                current = self._read() if initializer is not None else None
+            if initializer is not None:
+                # Initialization and migration share this writer lock and the
+                # exact snapshot just checksum-verified above. No detached cache
+                # or trust-by-mtime is used for a write. Ordinary transactions
+                # and recovery retain their existing strict reads.
+                datasets = copy.deepcopy(current['datasets'])
+                initializer(datasets)
+                if datasets != current['datasets']:
+                    current = self._commit(datasets, current['generation'], current)
+                self.initial_snapshot = current
 
     @contextmanager
     def _writer(self):

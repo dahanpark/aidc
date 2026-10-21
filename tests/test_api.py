@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -134,6 +135,47 @@ class ApiTests(unittest.TestCase):
             if kind != 'charter': self.assertNotIn(b'<script', raw)
         self.assertEqual(self.request('/api/bookmarks/' + aid, {}, method='DELETE')[0], 200)
         self.assertEqual(self.state()['data']['bookmarks'], [])
+
+    def test_one_click_scrap_preserves_notes_and_survives_news_filters(self):
+        aid = self.state()['data']['articles'][0]['id']
+        self.assertEqual(self.request('/api/bookmarks', {'article_id': aid})[0], 200)
+        self.assertEqual(self.request('/api/bookmarks', {'article_id': aid, 'note': 'KEEP-NOTE', 'tags': ['중요'], 'folder': '보관'})[0], 200)
+        created = self.state()['data']['bookmarks'][0]['created_at']
+        # A stale NEWS tab clicking add must not erase existing user metadata.
+        self.assertEqual(self.request('/api/bookmarks', {'article_id': aid})[0], 200)
+        data = json.loads(self.request('/api/state?period=1d&scope=global-ai&q=never-matches')[1])['data']
+        saved = next(b for b in data['bookmarks'] if b['article_id'] == aid)
+        self.assertEqual(saved['note'], 'KEEP-NOTE')
+        self.assertEqual(saved['tags'], ['중요'])
+        self.assertEqual(saved['created_at'], created)
+        self.assertIn(aid, [a['id'] for a in data['articles']])
+
+    def test_recent_news_period_validation_and_get_preserves_reads(self):
+        for value in (0, 366, True, '30'):
+            self.assertEqual(self.request('/api/settings', {'new_article_days': value})[0], 400)
+        self.assertEqual(self.request('/api/settings', {'new_article_days': 14})[0], 200)
+        before = self.app.repo.snapshot()['datasets'].get('news_read_states', {})
+        self.assertEqual(self.state()['data']['settings']['new_article_days'], 14)
+        self.assertEqual(self.app.repo.snapshot()['datasets'].get('news_read_states', {}), before)
+
+    def test_ai_http_connect_status_disconnect_are_mocked_and_readonly_get(self):
+        from tests.test_ai import Vault, KEY
+        self.app.ai.vault = Vault()
+        with patch('backend.ai_connection.request_bytes', return_value=b'{"data":[{"id":"gpt-6-luna"}]}'):
+            status, raw, _ = self.request('/api/ai/connect', {'key': KEY})
+            self.assertEqual(status, 200)
+            self.assertTrue(json.loads(raw)['data']['connected'])
+            self.assertNotIn(KEY.encode(), raw)
+        before = self.app.repo.snapshot()['generation']
+        status, raw, _ = self.request('/api/ai/status')
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(raw)['data']['connected'])
+        self.assertEqual(self.app.repo.snapshot()['generation'], before)
+        self.assertNotIn(KEY.encode(), raw)
+        self.assertEqual(self.request('/api/ai/disconnect', {})[0], 200)
+        self.assertFalse(json.loads(self.request('/api/ai/status')[1])['data']['connected'])
+        self.assertEqual(self.request('/api/ai/forget', {})[0], 200)
+        self.assertFalse(json.loads(self.request('/api/ai/status')[1])['data']['credential_present'])
 
     def test_backup_restore_rebuild_and_collection_idempotent(self):
         status, raw, _ = self.request('/api/backup', {})

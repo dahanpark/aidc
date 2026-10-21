@@ -85,7 +85,7 @@
     const values=[...points.values()];return {points,headings,width:Math.max(1500,...values.map(p=>p.x+p.w/2+65)),height:Math.max(880,...values.map(p=>p.y+p.h/2+65))};
   }
   function createGraph(options={}){
-    let config={height:650,mode:'project',...options},data,positions,scene,svgRoot,view={x:0,y:0,k:1},selection=null,drag=null,clickSuppressed=false,resizeObserver=null,destroyed=false;
+    let config={height:650,mode:'project',...options},data,positions,scene,svgRoot,view={x:0,y:0,k:1},selection=null,drag=null,clickSuppressed=false,resizeObserver=null,destroyed=false,popover=null,popoverNode=null,leader=null;
     const graphId=`atlas-network-${++graphSequence}`;
     const initialView=viewCache.get(str(config.viewKey||config.stateKey));
     const root=create('section','atlas-network');root.dataset.graphMode=config.mode;root.setAttribute('aria-label',config.title||'사업과 기업의 근거 관계 지도');
@@ -104,7 +104,29 @@
     append(footer,legend,hint);append(root,toolbar,stage,status,footer);
     function dimensions(){const r=stage.getBoundingClientRect();return {w:Math.max(280,r.width||1200),h:Math.max(440,r.height||650)};}
     function viewState(){const {w,h}=dimensions();return {...view,centerX:(w/2-view.x)/view.k,centerY:(h/2-view.y)/view.k,width:w,height:h};}
-    function transform(){if(scene)scene.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.k})`);scaleLabel.textContent=`${Math.round(view.k*100)}%`;root.dataset.zoom=String(view.k);if(root.isConnected){const state=viewState();remember(str(config.viewKey||config.stateKey),state);if(typeof config.onViewChange==='function')config.onViewChange(state);}}
+    function transform(){if(scene)scene.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.k})`);scaleLabel.textContent=`${Math.round(view.k*100)}%`;root.dataset.zoom=String(view.k);positionPopover();if(root.isConnected){const state=viewState();remember(str(config.viewKey||config.stateKey),state);if(typeof config.onViewChange==='function')config.onViewChange(state);}}
+    function closePopover(){popover?.remove();leader?.remove();popover=null;leader=null;popoverNode=null;}
+    function positionPopover(){
+      if(!popover||!popoverNode||!positions)return;
+      const p=positions.points.get(popoverNode.id),{w,h}=dimensions(),x=view.x+(p.x+p.w/2)*view.k,y=view.y+(p.y-p.h/2)*view.k,width=Math.min(300,w-24),height=popover.offsetHeight||235;
+      const left=Math.max(12,Math.min(w-width-12,x+26)),top=Math.max(12,Math.min(h-height-12,y+24));
+      popover.style.width=`${width}px`;popover.style.left=`${left}px`;popover.style.top=`${top}px`;
+      leader?.setAttribute('viewBox',`0 0 ${w} ${h}`);leader?.replaceChildren(svg('path',{d:`M${x} ${y}L${left+12} ${top+20}`,class:'atlas-network-alert-pointer'}));
+    }
+    function showArticlePopover(node){
+      if(clickSuppressed)return;
+      if(popoverNode?.id===node.id){closePopover();return;}
+      closePopover();const ids=new Set(node.unread_attention_ids||[]),items=(config.articleAlerts||[]).filter(a=>ids.has(a.id)&&a.unread&&a.is_recent!==false&&a.type==='new_article');
+      if(!items.length){if(typeof config.onArticleAlerts==='function')config.onArticleAlerts({kind:'node',id:node.id,node,article_ids:articleIds(node)});return;}
+      popoverNode=node;leader=svg('svg',{class:'atlas-network-alert-leader','aria-hidden':'true'});stage.append(leader);
+      popover=create('aside','atlas-network-alert-popover');popover.setAttribute('aria-label',`${name(node)} 최근 미확인 기사`);
+      const header=create('div','atlas-network-alert-head');header.append(create('strong','',`최근 미확인 기사 ${items.length}건`));const close=create('button','','×');close.type='button';close.setAttribute('aria-label','기사 팝업 닫기');close.addEventListener('click',closePopover);header.append(close);popover.append(header);
+      items.slice(0,3).forEach(item=>{const row=create('article','atlas-network-alert-row');let href=null;try{const u=new URL(item.url);if(['https:','http:'].includes(u.protocol)&&!u.username&&!u.password)href=u.href;}catch{}
+        const title=create(href?'a':'span','',item.title||'제목 미확인');if(href){title.href=href;title.target='_blank';title.rel='noopener noreferrer';}row.append(title,create('small','',str(item.published_at||'').slice(0,10)));
+        if(typeof config.onConfirmArticle==='function'){const ack=create('button','atlas-network-alert-ack','이 기사 확인');ack.type='button';ack.addEventListener('click',()=>config.onConfirmArticle(item.id));row.append(ack);}popover.append(row);});
+      if(items.length>3&&typeof config.onArticleAlerts==='function'){const more=create('button','atlas-network-alert-ack',`전체 ${items.length}건 보기`);more.type='button';more.addEventListener('click',()=>config.onArticleAlerts({kind:'node',id:node.id,node,article_ids:articleIds(node)}));popover.append(more);}
+      popover.append(create('small','atlas-network-alert-note','원문 열기는 읽음 처리하지 않습니다.'));popover.addEventListener('keydown',event=>{if(event.key==='Escape')closePopover();});stage.append(popover);positionPopover();
+    }
     function restoreView(state){if(!state)return false;const {w,h}=dimensions(),cx=Number.isFinite(Number(state.centerX))?Number(state.centerX):0,cy=Number.isFinite(Number(state.centerY))?Number(state.centerY):0;view.k=Math.max(.01,Math.min(3.5,number(state.k)||1));view.x=w/2-cx*view.k;view.y=h/2-cy*view.k;transform();return true;}
     function fit(all=false){if(!positions)return;const {w,h}=dimensions(),projectCenter=config.centerId?data.nodes.find(n=>(n.type==='project'||n.is_named_candidate)&&(n.id===config.centerId||n.entity_id===config.centerId)):null,isFocus=['company','company-network'].includes(config.mode)||Boolean(projectCenter),minimum=config.mode==='company-network'?Math.min(.55,(w-44)/2250):isFocus ? .85 : .75,scale=Math.min((w-70)/positions.width,(h-60)/positions.height,1.15);view.k=all?Math.max(.01,scale):Math.max(minimum,scale);view.x=(w-positions.width*view.k)/2;view.y=(h-positions.height*view.k)/2;if(!all&&scale<minimum&&isFocus){const center=projectCenter||data.nodes.find(n=>n.id===config.centerId||n.entity_id===config.centerId)||data.nodes.find(n=>n.type==='company')||data.nodes[0];const p=center&&positions.points.get(center.id);if(p){view.x=w/2-p.x*view.k;view.y=h/2-p.y*view.k;}}transform();}
     function zoom(factor,point){const {w,h}=dimensions(),at=point||{x:w/2,y:h/2},previous=view.k;view.k=Math.max(.01,Math.min(3.5,view.k*factor));view.x=at.x-(at.x-view.x)*view.k/previous;view.y=at.y-(at.y-view.y)*view.k/previous;transform();}
@@ -120,6 +142,7 @@
     }
     function activate(element,kind,item){element.setAttribute('tabindex','0');element.setAttribute('role','button');element.addEventListener('click',event=>{if(clickSuppressed)return;event.stopPropagation();select(kind,item);});element.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();select(kind,item);}if(kind==='node'&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();const p=positions.points.get(item.id),candidates=data.nodes.filter(n=>n.id!==item.id).map(n=>({n,p:positions.points.get(n.id)})).filter(({p:q})=>event.key==='ArrowUp'?q.y<p.y:event.key==='ArrowDown'?q.y>p.y:event.key==='ArrowLeft'?q.x<p.x:q.x>p.x).sort((a,b)=>Math.hypot(a.p.x-p.x,a.p.y-p.y)-Math.hypot(b.p.x-p.x,b.p.y-p.y));const next=candidates[0];if(next){const target=[...stage.querySelectorAll('[data-node-id]')].find(n=>n.dataset.nodeId===next.n.id);target?.focus();}}});}
     function draw(){
+      closePopover();
       data=normalized(config);root.dataset.graphMode=config.mode;
       // Missing role slots are explicit empty visual placeholders, never inferred participation.
       if(config.mode==='company')ROLES.forEach(([id,label])=>{if(!data.nodes.some(n=>n.type==='role'&&role(n)===id)){if(data.nodes.length>=250){const index=data.nodes.findLastIndex(n=>n.type!=='role'&&n.id!==config.centerId&&n.entity_id!==config.centerId);if(index>=0)data.nodes.splice(index,1);}data.nodes.push({id:`atlas-empty-role:${id}`,entity_id:id,type:'role',role:id,name:label,article_count:0,article_ids:[],placeholder:true});}});
@@ -147,7 +170,7 @@
         const visibleType=p.h>90?typeLabel:wrap(typeLabel,Math.max(3,(p.w-pillWidth-46)/9),1)[0];group.append(svg('text',{x:25,y:20,class:'atlas-network-node-type'},visibleType));
         const lines=wrap(name(node),(p.w-26)/(p.center?17:12),2);lines.forEach((line,i)=>group.append(svg('text',{x:13,y:p.center?46+i*21:40+i*15,class:'atlas-network-node-label'},line)));
         if(p.h>90){group.append(svg('path',{d:`M13 ${p.h-32}H${p.w-13}`,class:'atlas-network-center-divider'}),svg('text',{x:13,y:p.h-13,class:'atlas-network-node-count'},`연결 기사 ${count.toLocaleString('ko-KR')}개`));}else{group.append(svg('rect',{x:p.w-pillWidth-8,y:7,width:pillWidth,height:19,rx:6,class:'atlas-network-count-pill'}),svg('text',{x:p.w-14,y:20,class:'atlas-network-node-count','text-anchor':'end'},countLabel));}
-        if(isUnread){const count=Math.min(999,unread(node));group.append(svg('circle',{cx:p.w-2,cy:0,r:13,class:'atlas-network-unread-badge'}),svg('text',{x:p.w-2,y:4,'text-anchor':'middle',class:'atlas-network-unread-count'},count>99?'99+':String(count)));}
+        if(isUnread){const count=Math.min(999,unread(node)),alertButton=svg('g',{class:'atlas-network-alert-trigger',role:'button',tabindex:'0','aria-label':`${name(node)} 미확인 알림 열기`});alertButton.append(svg('circle',{cx:p.w-2,cy:0,r:13,class:'atlas-network-unread-badge'}),svg('text',{x:p.w-2,y:4,'text-anchor':'middle',class:'atlas-network-unread-count'},count>99?'99+':String(count)));alertButton.addEventListener('click',event=>{event.stopPropagation();showArticlePopover(node);});alertButton.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();showArticlePopover(node);}});group.append(alertButton);}
         group.append(svg('title',{},`${name(node)} · ${typeLabel} · 근거 ${articleIds(node).length}개${facts(node)?` · 사업 사실 변화 ${facts(node)}건`:''}`));activate(group,'node',node);nodeLayer.append(group);
       });
       const actual=data.nodes.length,total=Math.max(actual,number(config.totalNodes??config.total_nodes??config.graph?.total_nodes)||data.inputCount);counts.textContent=`노드 ${actual} / 전체 ${total} · 연결 ${data.edges.length}개${total>actual?' · 나머지 자료는 목록·표에서 확인':''}${data.nodes.some(n=>n.type==='role'&&n.placeholder)?' · 빈 역할 자리 포함':''}`;

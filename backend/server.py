@@ -26,6 +26,8 @@ from .company_catalog import build_company_catalog
 from .project_discovery import enrich_discovery, build_project_discovery
 from .attention import build_attention, apply_acknowledgement
 from .projection_cache import ProjectionCache
+from .ai_connection import AIConnection
+from . import ai_analysis
 
 
 class SnapshotIntegrityError(RuntimeError):
@@ -38,7 +40,6 @@ INTEGRITY_MESSAGE = '저장 자료 무결성 재검증에 실패했습니다. �
 class AtlasApplication:
     def __init__(self, root, store=None):
         self.root = Path(root).resolve()
-        self.repo = JsonRepository(store or self.root / "store")
         self.csrf = secrets.token_urlsafe(32)
         self.identity = hashlib.sha256(str(self.root).encode("utf-8")).hexdigest()[:16]
         self.stop = threading.Event()
@@ -52,21 +53,27 @@ class AtlasApplication:
         self._view_validator = None
         self._view_refresh_lock = threading.Lock()
         self._workspace_cache = ProjectionCache()
-        self.repo.publish_callback = self._publish_view_snapshot
-        pipeline.bootstrap(self.repo, self.root)
         def migrate(ds):
+            pipeline.initialize_datasets(ds, self.root)
             news.enrich_articles(ds,list(ds.get('articles',{})))
             enrich_discovery(ds,list(ds.get('articles',{})))
             settings = ds.setdefault('settings',{}).setdefault('app',{'id':'app'})
             settings['news_default_period'] = '1y'
+            settings.setdefault('new_article_days', 30)
+            for run in ds.get('ai_runs', {}).values():
+                if run.get('status') == 'running':
+                    run.update(status='interrupted', finished_at=now())
             settings.setdefault('baseline_backfill_enabled',True)
             for job in ds.get('news_jobs', {}).values():
                 if job.get('status') in ('running', 'queued'):
                     job.update(status='interrupted', updated_at=now(), message='앱이 재시작되었습니다. 남은 기간 수집을 재개할 수 있습니다.')
-        # One atomic startup transaction, reusing its fully verified result for
-        # the first view instead of immediately rereading thousands of files.
-        startup_snapshot = self.repo.transact(migrate)
+        # One full checksum read under the same writer lock as initialization.
+        self.repo = JsonRepository(store or self.root / 'store', initializer=migrate)
+        self.repo.publish_callback = self._publish_view_snapshot
+        self.ai = AIConnection(self.repo, self.identity, reader=self.view_snapshot)
+        startup_snapshot = self.repo.initial_snapshot
         self._publish_view_snapshot(startup_snapshot, (self.repo.root / 'CURRENT.json').read_bytes())
+        self.repo.initial_snapshot = None
         self.scheduler = threading.Thread(target=self._schedule, name="atlas-hourly", daemon=True)
 
     def _publish_view_snapshot(self, snapshot, pointer):
@@ -158,8 +165,9 @@ class AtlasApplication:
         for filename in ('news_sources.json', 'company_profile_registry.json'):
             path = self.root / 'config' / filename
             dependencies.append((path.stat().st_mtime_ns, path.stat().st_size) if path.exists() else None)
+        ai_status = self.ai.status(snapshot['datasets'])
         cache_key = (snapshot['generation'], json.dumps(filters or {}, sort_keys=True, ensure_ascii=False),
-                     tuple(dependencies), self.repo.recovery_notice)
+                     tuple(dependencies), self.repo.recovery_notice, ai_status['credential_present'])
         cached = self._workspace_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -181,6 +189,8 @@ class AtlasApplication:
         focus_company = focus_company.strip() if focus_company.strip() in known_companies else None
         data['ontology'] = build_ontology(snapshot,data['news'], focus_company_id=focus_company)
         data['attention'] = build_attention(snapshot,data['news'])
+        data['ai'] = {'connection': ai_status,
+                      **ai_analysis.workspace(datasets, [a['id'] for a in data['news']['articles']])}
         from .geo import build_map_workspace
         visual = data['settings'].get('visualization',{})
         map_workspace = {**data['news'], 'ontology':data['ontology']}
@@ -192,6 +202,9 @@ class AtlasApplication:
         has_live = any(a.get('mode') == 'live_metadata' for a in datasets.get('articles', {}).values())
         data.update({"mode": "live_metadata_with_verified_fixtures" if has_live else "fixture_mock", "version": __version__,
                      "capabilities": {"live_collection": sources_path.exists(), "real_ai_verified": False,
+                                      "personal_ai_connected": ai_status['connected'],
+                                      "personal_ai_inference_executed": bool(ai_status.get('inference_verified_at')),
+                                      "ai_quality_verified": False,
                                       "json_persistence": True, "internal_fetch": False,
                                       "backup_restore": True, "exports": True}})
         response = {"data": data, "snapshot_id": snapshot["generation"], "as_of": snapshot["as_of"],
@@ -389,6 +402,37 @@ class AtlasApplication:
             return {"status": "not_verified", "connected": False,
                     "message": "연결 프로필만 저장됩니다. 사내 프로토콜 확인 후 어댑터 구현과 실제 연결 검증이 필요합니다. 유료 API를 호출하지 않았습니다.",
                     "configured": bool(api.get("endpoint") and api.get("model"))}
+        if operation == 'ai/connect':
+            return self.ai.connect(payload)
+        if operation == 'ai/disconnect':
+            return self.ai.disconnect()
+        if operation == 'ai/forget':
+            return self.ai.disconnect(forget=True, delete_env=payload.get('delete_environment') is True)
+        if operation == 'ai/analyse':
+            return ai_analysis.analyse(self.ai, payload)
+        if operation == 'ai/match-decision':
+            return ai_analysis.decide_match(self.repo, payload)
+        if operation == 'network/test':
+            from .collector import fetch_public_feed, GOOGLE
+            from .network import network_environment, error_info
+            results = []
+            for name, url in [('Google News RSS', GOOGLE + '?q=AIDC&hl=ko&gl=KR&ceid=KR:ko'),
+                              ('DCD RSS', 'https://www.datacenterdynamics.com/en/rss/')]:
+                try:
+                    content = fetch_public_feed(url)
+                    import xml.etree.ElementTree as ET
+                    if b'<!DOCTYPE' in content.upper() or b'<!ENTITY' in content.upper():
+                        raise ValueError('Invalid XML')
+                    tag = ET.fromstring(content).tag.rsplit('}', 1)[-1]
+                    if tag not in ('rss', 'feed'):
+                        raise ValueError('Not RSS')
+                    results.append({'provider': name, 'status': 'ok', 'code': 'rss_verified'})
+                except Exception as exc:
+                    detail = error_info(exc) if not isinstance(exc, (ValueError, ET.ParseError)) else {
+                        'code': 'feed_validation', 'message': 'RSS 대신 차단 페이지 또는 비정상 XML이 응답했습니다.'}
+                    results.append({'provider': name, 'status': 'failed', **detail})
+            return {'environment': network_environment(), 'results': results,
+                    'collected_or_modified_articles': False, 'tested_at': now()}
 
         def edit(ds):
             stamp = now()
@@ -411,11 +455,14 @@ class AtlasApplication:
                 aid = payload.get("article_id")
                 if aid not in ds.get("articles", {}):
                     raise ValueError("자료가 존재하지 않습니다.")
-                tags = payload.get("tags", [])
+                existing = ds.get('bookmarks', {}).get(aid, {})
+                tags = payload.get("tags", existing.get('tags', []))
                 if not isinstance(tags, list) or len(tags) > 30 or any(not isinstance(x, str) or len(x) > 100 for x in tags):
                     raise ValueError("태그 형식을 확인하십시오.")
                 ds.setdefault("bookmarks", {})[aid] = {"id": aid, "article_id": aid, "tags": tags,
-                    "folder": limited(payload.get("folder", "스크랩"), 200), "note": limited(payload.get("note", ""), 10000), "created_at": stamp}
+                    "folder": limited(payload.get("folder", existing.get('folder', '스크랩')), 200),
+                    "note": limited(payload.get("note", existing.get('note', '')), 10000),
+                    "created_at": existing.get('created_at', stamp), 'updated_at': stamp}
             elif operation.startswith("bookmarks/delete/"):
                 ds.setdefault("bookmarks", {}).pop(operation.split("/", 2)[-1], None)
             elif operation == "notifications/read":
@@ -439,6 +486,19 @@ class AtlasApplication:
                     "user_note": limited(payload.get("user_note", ""), 10000), "visibility": "private", "created_at": stamp}
             elif operation == "settings":
                 settings = ds.setdefault("settings", {}).setdefault("app", {"id": "app"})
+                if 'new_article_days' in payload:
+                    value = payload['new_article_days']
+                    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 365:
+                        raise ValueError('신규 기사 기간은 1~365일입니다.')
+                    settings['new_article_days'] = value
+                if 'ai_limits' in payload:
+                    limits = payload['ai_limits']
+                    bounds = {'max_articles_per_run': (1, 20), 'daily_call_limit': (1, 500)}
+                    if (not isinstance(limits, dict) or set(limits) - set(bounds) or
+                            any(not isinstance(v, int) or isinstance(v, bool) or not bounds[k][0] <= v <= bounds[k][1]
+                                for k, v in limits.items())):
+                        raise ValueError('AI 분석 표본은 1~20개, 하루 호출 한도는 1~500회입니다.')
+                    settings.setdefault('ai', {}).update(limits)
                 if 'visualization' in payload:
                     visual=payload['visualization']
                     options={'map_mode':('split','world-inset'),'position_policy':('approximate','exact_only'),
@@ -549,6 +609,8 @@ def make_server(app, port=8765):
                 elif path == '/api/session':
                     # Launcher/shutdown must not build every graph just to get a token.
                     self._json({'app':'aidc-atlas', 'version':__version__, 'identity':app.identity, 'csrf_token':app.csrf})
+                elif path == '/api/ai/status':
+                    self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
                 elif path == "/api/state":
                     self._json(app.state(filters))
                 elif path == '/api/updates':
