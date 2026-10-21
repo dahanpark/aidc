@@ -4,6 +4,7 @@ import hashlib
 import zipfile
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -70,6 +71,42 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(all(not worker.is_alive() for worker in workers))
         self.assertEqual(self.repo.snapshot()['datasets']['settings']['app']['count'], 2)
+
+    def test_parallel_checksum_read_matches_serial_and_checks_every_record(self):
+        self.repo.transact(lambda ds: ds.update(companies={str(i): {'id': str(i), 'name': '합성 기업'} for i in range(32)}))
+        serial = self.repo._read(workers=1)
+        original = Path.read_bytes
+        active = peak = checked = 0
+        lock = threading.Lock()
+        def observed(path):
+            nonlocal active, peak, checked
+            if path.parent.name != 'companies':
+                return original(path)
+            with lock:
+                active += 1
+                peak = max(peak, active)
+                checked += 1
+            try:
+                time.sleep(.003)
+                return original(path)
+            finally:
+                with lock: active -= 1
+        with patch.object(Path, 'read_bytes', observed):
+            parallel = self.repo._read(workers=8)
+        self.assertEqual(serial, parallel)
+        self.assertEqual(checked, 32)
+        self.assertGreater(peak, 1)
+        self.assertLessEqual(peak, 8)
+        pointer = loads((self.repo.root / 'CURRENT.json').read_bytes())
+        manifest = loads((self.repo.root / 'generations' / pointer['generation'] / 'manifest.json').read_bytes())
+        ref = manifest['datasets']['companies']['0']
+        path = self.repo.root / 'generations' / ref['generation'] / 'companies' / ref['file']
+        raw = path.read_bytes()
+        try:
+            path.write_bytes(raw + b'corruption')
+            with self.assertRaises(ValueError): self.repo._read(workers=8)
+        finally:
+            path.write_bytes(raw)
 
     def test_verified_callback_runs_after_activation_and_cannot_mutate_returned_snapshot(self):
         events = []

@@ -130,7 +130,7 @@ class JsonRepository:
                         import fcntl
                         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
-    def _read(self, pointer=None):
+    def _read(self, pointer=None, *, workers=None):
         pointer = pointer or loads((self.root / "CURRENT.json").read_text(encoding="utf-8"))
         generation = pointer["generation"]
         if not re.fullmatch(r"[0-9a-f]{32}", generation):
@@ -142,7 +142,7 @@ class JsonRepository:
         manifest = loads(manifest_raw)
         if manifest["schema_version"] != 1 or manifest["generation"] != generation:
             raise ValueError("Unsupported snapshot schema")
-        datasets = {}
+        datasets, entries = {}, []
         for dataset, records in manifest["datasets"].items():
             if not re.fullmatch(r"[a-z][a-z0-9_]*", dataset):
                 raise ValueError("Invalid dataset")
@@ -154,13 +154,33 @@ class JsonRepository:
                 record_generation = ref.get('generation', generation)
                 if not re.fullmatch(r'[0-9a-f]{32}',record_generation):
                     raise ValueError('Invalid record generation')
-                raw = (self.root / 'generations' / record_generation / dataset / filename).read_bytes()
-                if digest(raw) != ref["sha256"]:
-                    raise ValueError("Record checksum mismatch")
-                item = loads(raw)
-                if item["entity_id"] != entity_id or item["dataset"] != dataset or item["schema_version"] != 1:
-                    raise ValueError("Record identity/schema mismatch")
-                datasets[dataset][entity_id] = item["payload"]
+                entries.append((dataset, entity_id, record_generation, filename, ref['sha256']))
+
+        def checked_record(entry):
+            dataset, entity_id, record_generation, filename, expected_hash = entry
+            raw = (self.root / 'generations' / record_generation / dataset / filename).read_bytes()
+            if digest(raw) != expected_hash:
+                raise ValueError("Record checksum mismatch")
+            item = loads(raw)
+            if item["entity_id"] != entity_id or item["dataset"] != dataset or item["schema_version"] != 1:
+                raise ValueError("Record identity/schema mismatch")
+            return dataset, entity_id, item['payload']
+
+        parallelism = 8 if workers is None and len(entries) >= 1000 else workers or 1
+        if not isinstance(parallelism, int) or not 1 <= parallelism <= 8:
+            raise ValueError('Invalid checksum reader count')
+        if parallelism > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            # Bounded queue, deterministic assembly, same checks on every file.
+            # Immutable generation records are never modified by reader workers.
+            with ThreadPoolExecutor(max_workers=parallelism, thread_name_prefix='atlas-json-check') as executor:
+                for offset in range(0, len(entries), 256):
+                    for dataset, entity_id, payload in executor.map(checked_record, entries[offset:offset + 256]):
+                        datasets[dataset][entity_id] = payload
+        else:
+            for entry in entries:
+                dataset, entity_id, payload = checked_record(entry)
+                datasets[dataset][entity_id] = payload
         self.validate(datasets)
         return {"generation": generation, "as_of": manifest["created_at"], "datasets": datasets}
 
