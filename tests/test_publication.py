@@ -14,6 +14,17 @@ SPEC.loader.exec_module(PUBLICATION)
 
 
 class PublicationTests(unittest.TestCase):
+    def test_manifest_uses_staged_source_bytes_after_git_normalization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            subprocess.run(['git','init',str(root)],check=True,capture_output=True)
+            target=root/'source.py'
+            target.write_bytes(b'first\r\nsecond\r\n')
+            subprocess.run(['git','-c','core.autocrlf=true','add','source.py'],cwd=root,check=True,capture_output=True)
+            hashes=PUBLICATION.staged_file_hashes(root,['source.py'])
+            self.assertEqual(hashes['source.py'],hashlib.sha256(b'first\nsecond\n').hexdigest())
+            self.assertNotEqual(hashes['source.py'],hashlib.sha256(target.read_bytes()).hexdigest())
+
     def test_generated_digest_matches_git_blob_with_windows_line_endings(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)

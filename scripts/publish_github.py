@@ -52,6 +52,13 @@ def write_generated(path, text):
     path.write_bytes(text.replace('\r\n', '\n').replace('\r', '\n').encode('utf-8'))
 
 
+def staged_file_hashes(directory, names):
+    # Existing source blobs may themselves contain CRLF. Git filters on add;
+    # the manifest describes the resulting index, not the working tree bytes.
+    return {name: hashlib.sha256(git('show', ':' + name, cwd=directory, binary=True)).hexdigest()
+            for name in names}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--publish", action="store_true")
@@ -194,6 +201,8 @@ python -B -m unittest discover -s tests
     write_generated(dest / ".gitignore", "store/\nruntime/\nbackups/\nexports/\nderived_index/\noutput/\n.env\n.env.*\n*.local.json\n*.lnk\n__pycache__/\n*.py[cod]\nnode_modules/\n")
     for name in ["README.md", ".gitignore"]:
         hashes[name] = hashlib.sha256((dest / name).read_bytes()).hexdigest()
+    git('add', '--all', cwd=dest)
+    hashes = staged_file_hashes(dest, hashes)
     manifest = {"schema_version": "1.0", "source_commit": source_commit, "source_revision": revision,
                 "repository": policy["repository"], "exported_at": stamp, "files": hashes,
                 "exclusions": policy["excluded_roots"], "secret_pattern_scan": "PASS"}
