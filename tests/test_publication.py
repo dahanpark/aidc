@@ -3,6 +3,9 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+import tempfile
+import subprocess
+import hashlib
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("atlas_publication", ROOT / "scripts/publish_github.py")
@@ -11,6 +14,18 @@ SPEC.loader.exec_module(PUBLICATION)
 
 
 class PublicationTests(unittest.TestCase):
+    def test_generated_digest_matches_git_blob_with_windows_line_endings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            subprocess.run(['git','init',str(root)],check=True,capture_output=True)
+            target=root/'README.md'
+            PUBLICATION.write_generated(target,'한글\r\nsecond\rthird\n')
+            raw=target.read_bytes()
+            self.assertEqual(raw,'한글\nsecond\nthird\n'.encode('utf-8'))
+            subprocess.run(['git','-c','core.autocrlf=true','add','README.md'],cwd=root,check=True,capture_output=True)
+            blob=subprocess.check_output(['git','show',':README.md'],cwd=root)
+            self.assertEqual(hashlib.sha256(blob).hexdigest(),hashlib.sha256(raw).hexdigest())
+
     def test_token_like_values_are_rejected_even_in_tests(self):
         for name in ["backend/app.py", "tests/test_pipeline.py"]:
             with self.subTest(name=name), self.assertRaises(RuntimeError):

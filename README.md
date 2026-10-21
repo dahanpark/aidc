@@ -22,13 +22,24 @@ Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atla
 - LOCATION: 국내 AIDC 기본 범위, 지도 우선·오른쪽 조건/지역 기사
 - NEWS / SYNTHESIS / SCRAP / ALERTS / SETTINGS
 
-## 설명서와 프로젝트 문서
+## 개발 자료와 다운로드 경로
 
-[프로젝트 문서 ZIP 다운로드](https://github.com/dahanpark/aidc/releases/download/project-documents-20261019-ff855ff5/AIDC.ATLAS.PROJECT.ZIP)
+기획서·매뉴얼·스킬과 정의서·발표자료·시연영상은 [개발 산출물 릴리스](https://github.com/dahanpark/aidc/releases/tag/atlas-project-deliverables-20261020)에 공개했습니다. 각 파일은 아래 경로에서 내려받습니다.
 
-프로그램 목적·구축 방법·업무 개선·AI 활용·효과·조직 확장 설명서의 HTML/Word 판, 세부 기획서, 프로젝트 스킬 13개, 사용자 매뉴얼과 파일 안내를 포함합니다.
-[문서 릴리스 페이지](https://github.com/dahanpark/aidc/releases/tag/project-documents-20261019-ff855ff5)에서 구성과 검증 범위를 확인할 수 있습니다.
-문서 패키지 기준은 REV012이며, 실행 소스는 이 저장소의 main 브랜치를 사용합니다.
+|자료|파일과 다운로드 경로|
+|---|---|
+|세부 프로젝트 기획서 v2.1|[DEVELOPMENT_PLAN.md](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/DEVELOPMENT_PLAN.md)|
+|사용자 매뉴얼|[USER_MANUAL.html](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/USER_MANUAL.html) · [USER_MANUAL.md](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/USER_MANUAL.md)|
+|프로젝트 스킬 13개 v0.2.1|[atlas-skills-v0.2.1.zip](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/atlas-skills-v0.2.1.zip)|
+|13개 스킬 전체 정의서|[SKILL_DEFINITIONS.md](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/SKILL_DEFINITIONS.md)|
+|스킬 목록과 사용 조건|[SKILL_CATALOG.md](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/SKILL_CATALOG.md)|
+|발표자료 PDF 18장|[AIDC-ATLAS-PRESENTATION.pdf](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/AIDC-ATLAS-PRESENTATION.pdf)|
+|시연영상 MP4 약160MB|[AIDC-ATLAS-DEMO.mp4](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/AIDC-ATLAS-DEMO.mp4)|
+|목적·구축·AI 활용·효과 설명서|[HTML](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/AIDC-ATLAS-OVERVIEW.html) · [Word DOCX](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/AIDC-ATLAS-OVERVIEW.docx)|
+|전체 파일 안내와 해시|[README.TXT](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/README.TXT) · [DELIVERABLES.json](https://github.com/dahanpark/aidc/releases/download/atlas-project-deliverables-20261020/DELIVERABLES.json)|
+|기획·스킬·매뉴얼·설명서 문서 ZIP|[AIDC.ATLAS.PROJECT.ZIP](https://github.com/dahanpark/aidc/releases/download/project-documents-20261019-ff855ff5/AIDC.ATLAS.PROJECT.ZIP)|
+
+HTML 파일은 내려받은 뒤 브라우저로 엽니다. PDF에서 동영상은 재생되지 않으므로 별도 MP4를 사용합니다. 문서와 발표자료는 기능 기준 REV012이며, 실행 소스는 main 브랜치를 사용합니다. 문서의 향후 개발 제안과 실제 구현·실측을 구분합니다.
 
 ## 데이터와 한계
 
@@ -48,4 +59,4 @@ python -B -m unittest discover -s tests
 소스 REV: **REV012**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
 공개본은 별도 Git 이력이며 로컬 전체 Git 객체를 전송하지 않습니다. 로컬 폴더·과거 검증 결과에 의존하는 일부 운영 검증 스크립트는 공개본에서 사용할 수 없습니다.
 
-공개 범위는 `config/publication.json`에 명시합니다. 사내 목적·개발 인계·의사결정 문서와 로컬 REV 대장은 공개하지 않습니다.
+자동 소스 공개 범위는 `config/publication.json`에 명시합니다. 위 산출물은 사용자가 별도로 공개를 지시한 파일만 릴리스에 첨부했습니다. 그 밖의 업무 자료·개발 인계·의사결정 문서와 로컬 REV 대장은 전송하지 않습니다.
