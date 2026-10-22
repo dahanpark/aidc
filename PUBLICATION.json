@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
-  "source_commit": "9b0086bc14a754bbccc192a74b0c8a8b7680504c",
+  "source_commit": "f80958f0a96b883e5a2145074b9bdd8c12b2c32f",
   "source_revision": "REV013",
   "repository": "dahanpark/aidc",
-  "exported_at": "20261021T224324416298Z",
+  "exported_at": "20261022T233044260956Z",
   "files": {
     "backend/__init__.py": "d832e247d160c2887702a5eb23fbec8bd26d88ecd62b52d02052bd690ce1e5d5",
     "backend/ai_analysis.py": "d45b249c9fd72ecf3be31e8ab7b0e968a90709f2a871cb59db143df0af4bd25f",
@@ -25,7 +25,7 @@
     "backend/reports.py": "78473ebc2b3b04c9ca6fd6923a47ad3a6994581abcf40e95c5a77ae2bee274c1",
     "backend/repository.py": "5462fb7e29f676fda3b4d530189a200c10c45809651ced4124cd305f6aa50284",
     "backend/security.py": "9a5e4da4e2698f981f3aa56968dccfdd75bdd0300140e4c5e2972d13c5411548",
-    "backend/server.py": "08d7f3937233362c65e141821ac6d5e7b5d233bb4ee5c0c1b7450d408005ed35",
+    "backend/server.py": "dc8dd4acee64b187205f2392c25c412e6f5d7a58057dd27e42b9e21a95f1b1e8",
     "config/company_profile_registry.json": "467c506b352856c4ccf48998b0b76d5bb1251217578a9786b768c8d5e1a55a20",
     "config/news_sources.json": "baf52041a91d5cd578f442797605b11904f685b74bd5b29ccdfbbc7b76a795a3",
     "config/publication.json": "a02034e6e24ff680a94a853b0fdcd1ca6f912523e688390c2c73e84890e18ba0",
@@ -54,7 +54,7 @@
     "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "tests/browser_host.py": "8c0f1e1d482f88d312d740f2a45f6c9b0c98ae18dee9075c8e1b9fd81c340249",
     "tests/test_ai.py": "3e3fa4bc43441e0c4d4c8a097bcab1d643d2a0b478724372a735ae0f0864f900",
-    "tests/test_api.py": "51f1e0d7d5f6dfadea18122d8cef53782707f2050e7c02aa73ae760510cb235b",
+    "tests/test_api.py": "77ea6ffcb6362b024fcee1dec657d783a1e956fc00a630634932634c7c31e649",
     "tests/test_attention.py": "3bbc0f8405cb34e856d5f01846024c4b6bd81060f7b90d4d0b0df70b8227b509",
     "tests/test_collector.py": "a3ba664e35339bc1ea963851128ed7ff285e5861c76785709b59714354e946cc",
     "tests/test_company_catalog.py": "3173106515860367e63f2c79916ad3d7c3d5e9ac01aa0ae12086590e27bbbbf1",
@@ -71,7 +71,7 @@
     "tests/test_publication.py": "ff0ff1a3808a37bc7d32e9357e6da0314afe88caa07d11a15e1e4bf43acc778c",
     "tests/test_repository.py": "50bc33dab8bd8c21069721b1b7ba2f9608469f13bc8b546d4e628bd424d64b62",
     "tests/test_startup.py": "bd57f2f5cfd8960fddddc4b25b959052c6e03e05ca4b356c4047dbfd0ea16ccd",
-    "tests/test_view_cache.py": "641d42340bdae050c09d53b3468ba633127ce7fb2290e5d4995e8afbca11cfa7",
+    "tests/test_view_cache.py": "0a8372073e935c4e18b6d73e6d9cc4d5fc9a6871cbeed899fbdc1277e4ab0583",
     "README.md": "0f221a7fe1492885498c16d92f93da2194ad07b9914edf8a8e8fc53a8dc1a1f7",
     ".gitignore": "b1275d51c85443819d3fe24bb5e75d491303bf6d7a5790f05902e1a8c4f95fd6"
   },

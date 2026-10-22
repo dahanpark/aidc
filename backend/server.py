@@ -119,7 +119,8 @@ class AtlasApplication:
                 if self._view_validator is threading.current_thread():
                     self._view_validator = None
 
-    def view_snapshot(self):
+    def _verified_view(self):
+        """Owned, read-only reference; callers must not expose or mutate records."""
         pointer = self._read_view_pointer()
         validator = None
         with self._view_lock:
@@ -133,7 +134,7 @@ class AtlasApplication:
         if cached is not None:
             if validator is not None:
                 validator.start()
-            return copy.deepcopy(cached)
+            return cached
         # A generation changed outside this application's verified writer path.
         # Validate it synchronously before it can become visible; parallel GETs
         # share the completed cache rather than repeating a large disk scan.
@@ -145,17 +146,26 @@ class AtlasApplication:
                         raise SnapshotIntegrityError(INTEGRITY_MESSAGE)
                     cached = self._view_snapshot if pointer == self._view_pointer else None
                 if cached is not None:
-                    return copy.deepcopy(cached)
+                    return cached
                 try:
                     verified = self.repo.snapshot()
                     if self._publish_view_snapshot(verified, pointer):
-                        return copy.deepcopy(verified)
+                        return verified
                 except Exception as error:
                     with self._view_lock:
                         if self._read_view_pointer() == pointer:
                             self._view_error_pointer = pointer
                     raise SnapshotIntegrityError(INTEGRITY_MESSAGE) from error
         raise SnapshotIntegrityError('저장 세대가 변경 중입니다. 잠시 후 다시 조회하십시오.')
+
+    def view_snapshot(self):
+        return copy.deepcopy(self._verified_view())
+
+    def view_generation(self):
+        # Metadata follows the same pointer/error/revalidation rules as a view.
+        # A verified writer already published this generation. Neither another
+        # archive scan nor a copy of every record is needed to return its ID.
+        return self._verified_view()['generation']
 
     def state(self, filters=None):
         snapshot = self.view_snapshot()
@@ -687,7 +697,7 @@ def make_server(app, port=8765):
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                     return
                 result = app.mutate(operation or path.removeprefix("/api/"), payload)
-                self._json({"data": result, "as_of": now(), "snapshot_id": app.repo.snapshot()["generation"], "warnings": []})
+                self._json({"data": result, "as_of": now(), "snapshot_id": app.view_generation(), "warnings": []})
             except (ValueError, KeyError, TypeError) as error:
                 # Validation messages are deliberately fixed; never echo untrusted body/keys.
                 self._json({"error": str(error) if isinstance(error, ValueError) else "입력 형식을 확인하십시오."}, 400)

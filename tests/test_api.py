@@ -52,6 +52,21 @@ class ApiTests(unittest.TestCase):
     def state(self):
         return json.loads(self.request('/api/state')[1])
 
+    def test_write_reply_reuses_verified_generation_without_third_archive_read(self):
+        before = self.app.view_snapshot()
+        aid = next(iter(before['datasets']['articles']))
+        with patch.object(self.app.repo, '_read', wraps=self.app.repo._read) as reads:
+            status, raw, _ = self.request('/api/bookmarks', {'article_id': aid})
+        self.assertEqual(status, 200)
+        response = json.loads(raw)
+        pointer = json.loads((self.app.repo.root / 'CURRENT.json').read_text(encoding='utf-8'))
+        self.assertNotEqual(response['snapshot_id'], before['generation'])
+        self.assertEqual(response['snapshot_id'], pointer['generation'])
+        self.assertEqual(response['data']['snapshot_id'], response['snapshot_id'])
+        self.assertIn(aid, self.app.view_snapshot()['datasets']['bookmarks'])
+        # The active snapshot and staged snapshot must both remain fully checked.
+        self.assertEqual(reads.call_count, 2)
+
     def test_company_classification_http_persists_without_changing_roles_or_ack(self):
         before = self.app.repo.snapshot()['datasets']
         cid = next(iter(before['companies']))

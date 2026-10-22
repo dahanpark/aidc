@@ -31,6 +31,29 @@ class ViewCacheTests(unittest.TestCase):
     def expire(self):
         self.app._view_checked_at = time.monotonic() - 21
 
+    def test_generation_metadata_avoids_record_copy_and_honors_integrity_error(self):
+        expected = self.app.view_snapshot()['generation']
+        with patch('backend.server.copy.deepcopy', side_effect=AssertionError('unnecessary record copy')), \
+             patch.object(self.app.repo, 'snapshot', side_effect=AssertionError('unnecessary archive scan')):
+            self.assertEqual(self.app.view_generation(), expected)
+            self.app._view_error_pointer = self.app._view_pointer
+            with self.assertRaises(SnapshotIntegrityError):
+                self.app.view_generation()
+
+    def test_generation_metadata_strictly_recovers_after_cache_publication_failure(self):
+        old = self.app.view_generation()
+        def unavailable(*_):
+            raise RuntimeError('cache publication unavailable')
+        self.app.repo.publish_callback = unavailable
+        committed = self.app.repo.transact(lambda ds: ds['settings']['app'].update(digest_hour=6))
+        self.assertNotEqual(old, committed['generation'])
+        self.assertIsNotNone(self.app.repo.publish_error)
+        with patch.object(self.app.repo, 'snapshot', wraps=self.app.repo.snapshot) as reader:
+            self.assertEqual(self.app.view_generation(), committed['generation'])
+            self.assertEqual(reader.call_count, 1)
+            self.assertEqual(self.app.view_snapshot(), committed)
+            self.assertEqual(reader.call_count, 1)
+
     def test_slow_periodic_validation_never_blocks_get_or_holds_cache_lock(self):
         started, release = threading.Event(), threading.Event()
         strict = self.app.repo.snapshot
@@ -75,7 +98,7 @@ class ViewCacheTests(unittest.TestCase):
         external = JsonRepository(self.app.repo.root)
         changed = external.transact(lambda ds: ds['settings']['app'].update(digest_hour=8))
         with patch.object(self.app.repo, 'snapshot', wraps=self.app.repo.snapshot) as reader:
-            self.assertEqual(self.app.view_snapshot()['generation'], changed['generation'])
+            self.assertEqual(self.app.view_generation(), changed['generation'])
             self.assertEqual(reader.call_count, 1)
             self.app.view_snapshot()
             self.assertEqual(reader.call_count, 1)
@@ -135,6 +158,8 @@ class ViewCacheTests(unittest.TestCase):
             worker.join(timeout=3)
         with self.assertRaises(SnapshotIntegrityError):
             self.app.view_snapshot()
+        with self.assertRaises(SnapshotIntegrityError):
+            self.app.view_generation()
         self.assertEqual(self.app._view_snapshot, before)
         with self.assertRaises(ValueError):
             self.app.repo.snapshot()
