@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
-  "source_commit": "f80958f0a96b883e5a2145074b9bdd8c12b2c32f",
+  "source_commit": "ea972878e5f80548268baacad514df5fa035caa2",
   "source_revision": "REV013",
   "repository": "dahanpark/aidc",
-  "exported_at": "20261022T233044260956Z",
+  "exported_at": "20261024T002746575589Z",
   "files": {
     "backend/__init__.py": "d832e247d160c2887702a5eb23fbec8bd26d88ecd62b52d02052bd690ce1e5d5",
     "backend/ai_analysis.py": "d45b249c9fd72ecf3be31e8ab7b0e968a90709f2a871cb59db143df0af4bd25f",
@@ -48,7 +48,7 @@
     "frontend/index.html": "a94fbdfa04a06bcf6f7fef94a4b675f8d19f14cb3ea415683fadb0c533afec43",
     "run_atlas.py": "240d8f125324ad08c84382e943d2b8af58653450ae95d2a59685adceb0a2c0ea",
     "scripts/create_shortcut.ps1": "b1e276da3a98253777394e03cac6a88aa88c7f3c2c5e2ef1d3def01d85587692",
-    "scripts/publish_github.py": "8b4c49e757385753a7c208f0417ac865ed1f20b058054b87bd8e2eb0a9075e5d",
+    "scripts/publish_github.py": "8225e548f0f29b39242af589d7c03e166e45133764b89bada6161026728242b6",
     "scripts/start_atlas.ps1": "446f6711503a433e094ca201e98e71baa53d8749134895d5500f8dd26242cd16",
     "scripts/stop_atlas.ps1": "08ae6b04815449148e16ae771b97b1f91b968cafac7b3f18deb35676c023edbb",
     "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -68,11 +68,11 @@
     "tests/test_pipeline.py": "daea8d7d82757462b0d88ad97dbdd8d4b5a6846702b1092398929ad5ed840101",
     "tests/test_project_discovery.py": "e547588d81b3e5adff5b30fa9152198012287903381ab4cb738cf0e3e77f01fc",
     "tests/test_projection_cache.py": "b85bef2c31b994a967f071d45b17f4711cf826707096430e37116702c20cd41b",
-    "tests/test_publication.py": "ff0ff1a3808a37bc7d32e9357e6da0314afe88caa07d11a15e1e4bf43acc778c",
+    "tests/test_publication.py": "fad0cee16ac7eb30a11f484d88da62cd7c16b96b31595af391c220b9e7b626e4",
     "tests/test_repository.py": "50bc33dab8bd8c21069721b1b7ba2f9608469f13bc8b546d4e628bd424d64b62",
     "tests/test_startup.py": "bd57f2f5cfd8960fddddc4b25b959052c6e03e05ca4b356c4047dbfd0ea16ccd",
     "tests/test_view_cache.py": "0a8372073e935c4e18b6d73e6d9cc4d5fc9a6871cbeed899fbdc1277e4ab0583",
-    "README.md": "0f221a7fe1492885498c16d92f93da2194ad07b9914edf8a8e8fc53a8dc1a1f7",
+    "README.md": "51ab4aba1c34d3132f6e7dbc3c51ebe969cc4ef813842b8638fcd73b16cac823",
     ".gitignore": "b1275d51c85443819d3fe24bb5e75d491303bf6d7a5790f05902e1a8c4f95fd6"
   },
   "exclusions": [

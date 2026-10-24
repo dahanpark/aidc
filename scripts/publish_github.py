@@ -14,6 +14,24 @@ import urllib.request
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
+AI_DOC_TAG = 'atlas-ai-documents-20261024'
+AI_DOC_VERSION = '2.3'
+
+
+def ai_documentation_readme():
+    base = f'https://github.com/dahanpark/aidc/releases/download/{AI_DOC_TAG}'
+    return f'''## 최신 기획서·매뉴얼 · AI 분석 v{AI_DOC_VERSION}
+
+[AI 문서 릴리스](https://github.com/dahanpark/aidc/releases/tag/{AI_DOC_TAG})는 REV013의 선택형 AI 분석을 설명합니다. 공개 기사 근거 추출·동일 사업 후보 비교·동향/점검 요약, PC별 키 등록·삭제, 전송 확인·호출 한도·실제 품질 검증 절차를 포함합니다. 실제 개인 API 품질·회사 PC·화면 인수 완료를 뜻하지 않습니다.
+
+|최신 자료|다운로드|
+|---|---|
+|세부 개발 기획서 v{AI_DOC_VERSION}|[DEVELOPMENT_PLAN.md]({base}/DEVELOPMENT_PLAN.md)|
+|사용자 매뉴얼 v{AI_DOC_VERSION}|[USER_MANUAL.html]({base}/USER_MANUAL.html) · [USER_MANUAL.md]({base}/USER_MANUAL.md)|
+|파일 안내·SHA256|[README.TXT]({base}/README.TXT) · [DELIVERABLES.json]({base}/DELIVERABLES.json)|
+
+키는 프로그램의 **AI 연결**에서 Windows 보안 저장소에 등록합니다. `.env` 자동 생성·읽기는 지원하지 않습니다. AI 미연결 기능은 유지하며 분석은 표본/사용량 확인 후 명시 실행합니다. 아래 기존 문서·발표·스킬·시연·ZIP 릴리스는 과거 버전으로 보존합니다.
+'''
 
 
 def git(*args, cwd=ROOT, binary=False):
@@ -172,7 +190,9 @@ SETTINGS에서 제공사/모델/인증 시각/호출량/연결 해제/키 삭제
 
 스크랩은 한 번 클릭으로 저장하고 SCRAP에서 기사 필터와 무관하게 전체 저장분을 확인합니다. 신규 기사 표시 기본 30일은 SETTINGS에서 변경하며, 관계도 배지 팝업에서 원문과 정확한 기사 확인 버튼을 사용합니다. 기존 미확인 알림은 보존합니다.
 
-## 개발 자료와 다운로드 경로
+{ai_documentation_readme()}
+
+## 이전 개발 자료와 다운로드 경로 · REV012 보존본
 
 기획서·매뉴얼·스킬과 정의서·발표자료·시연영상은 [개발 산출물 릴리스](https://github.com/dahanpark/aidc/releases/tag/atlas-project-deliverables-20261020)에 공개했습니다. 각 파일은 아래 경로에서 내려받습니다.
 

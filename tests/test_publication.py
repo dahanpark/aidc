@@ -14,6 +14,16 @@ SPEC.loader.exec_module(PUBLICATION)
 
 
 class PublicationTests(unittest.TestCase):
+    def test_latest_ai_documents_are_versioned_separately_from_historical_assets(self):
+        text = PUBLICATION.ai_documentation_readme()
+        base = 'https://github.com/dahanpark/aidc/releases/download/' + PUBLICATION.AI_DOC_TAG
+        for name in ['DEVELOPMENT_PLAN.md', 'USER_MANUAL.md', 'USER_MANUAL.html', 'README.TXT', 'DELIVERABLES.json']:
+            self.assertIn(base + '/' + name, text)
+        self.assertIn('v' + PUBLICATION.AI_DOC_VERSION, text)
+        self.assertIn('실제 개인 API 품질', text)
+        self.assertIn('`.env` 자동 생성·읽기는 지원하지 않습니다', text)
+        self.assertIn('과거 버전으로 보존', text)
+
     def test_manifest_uses_staged_source_bytes_after_git_normalization(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
