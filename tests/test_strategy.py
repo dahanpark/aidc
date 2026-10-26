@@ -64,7 +64,7 @@ class StrategyTests(unittest.TestCase):
         before=copy.deepcopy(self.ds);p=self.prepared();self.assertEqual(p['article_ids'],['a'])
         self.assertEqual(p['input_hash'],self.prepared()['input_hash']);self.assertEqual(self.ds,before)
         rendered=str(p);self.assertNotIn('SECRET',rendered);self.assertNotIn('intranet',rendered)
-        self.assertEqual(set(p['input_data']),{'company','rows','articles'})
+        self.assertEqual(set(p['input_data']),{'company','rows','articles','analysis_brief'})
         self.assertLessEqual(len(p['articles'][0]['text']),2400)
         for update in [{'article_ids':['b']},{'article_ids':['c']},{'article_ids':['d']},{'article_ids':['missing']},
                        {'article_ids':['a','a']},{'row_ids':['strategy']*4},{'row_ids':[{}]},
