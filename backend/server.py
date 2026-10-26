@@ -27,7 +27,7 @@ from .project_discovery import enrich_discovery, build_project_discovery
 from .attention import build_attention, apply_acknowledgement
 from .projection_cache import ProjectionCache
 from .ai_connection import AIConnection
-from . import ai_analysis, strategy, strategy_analysis, ai_classification
+from . import ai_analysis, strategy, strategy_analysis, ai_classification, project_identity, project_identity_view
 
 
 class SnapshotIntegrityError(RuntimeError):
@@ -60,6 +60,9 @@ class AtlasApplication:
             settings = ds.setdefault('settings',{}).setdefault('app',{'id':'app'})
             settings['news_default_period'] = '1y'
             settings.setdefault('new_article_days', 30)
+            if settings.get('ai'):
+                for key, value in {'max_input_chars':8000, 'max_output_tokens':1200, 'article_text_chars':1200, 'enabled_tasks':['extract','compare','briefing','classify','strategy']}.items():
+                    settings['ai'].setdefault(key, value)
             for run in ds.get('ai_runs', {}).values():
                 if run.get('status') == 'running':
                     run.update(status='interrupted', finished_at=now())
@@ -192,6 +195,7 @@ class AtlasApplication:
         catalog_source = data['news'].pop('_company_catalog_source')
         data['company_catalog'] = build_company_catalog(snapshot, data['news'], catalog_source)
         data['project_discovery'] = build_project_discovery(snapshot, data['news'])
+        data['project_identity'] = project_identity.workspace(datasets, [a['id'] for a in data['news']['articles']])
         focus_company = (filters or {}).get('graph_company_id') or ''
         if not isinstance(focus_company, str) or len(focus_company) > 200:
             raise ValueError('잘못된 관계도 기업 선택입니다.')
@@ -218,6 +222,7 @@ class AtlasApplication:
                                       "ai_quality_verified": False,
                                       "json_persistence": True, "internal_fetch": False,
                                       "backup_restore": True, "exports": True}})
+        data = project_identity_view.apply(data, data['project_identity'])
         response = {"data": data, "snapshot_id": snapshot["generation"], "as_of": snapshot["as_of"],
                     "csrf_token": self.csrf, "warnings": [self.repo.recovery_notice] if self.repo.recovery_notice else []}
         self._workspace_cache.put(cache_key, response)
@@ -419,6 +424,14 @@ class AtlasApplication:
             return self.ai.disconnect()
         if operation == 'ai/forget':
             return self.ai.disconnect(forget=True, delete_env=payload.get('delete_environment') is True)
+        if operation == 'project-identity/preview':
+            return project_identity.preview(self.view_snapshot()['datasets'], payload)
+        if operation in ('project-identity/confirm', 'project-identity/undo'):
+            response = {}
+            def identity_edit(ds):
+                response.update(project_identity.apply(ds, payload) if operation.endswith('/confirm') else project_identity.undo(ds, payload))
+            self.repo.transact(identity_edit)
+            return {'status': 'saved', 'group': response}
         if operation == 'strategy/save':
             self.repo.transact(lambda ds: strategy.save_board(ds, payload))
             return {'status': 'saved'}
@@ -644,6 +657,14 @@ def make_server(app, port=8765):
                     self._json({'app':'aidc-atlas', 'version':__version__, 'identity':app.identity, 'csrf_token':app.csrf})
                 elif path == '/api/ai/status':
                     self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
+                elif path == '/api/project-identities':
+                    snap = app.view_snapshot()
+                    query = parse_qs(parsed.query)
+                    if query.get('include_all', [''])[0] == 'true':
+                        self._json({'data': project_identity.workspace(snap['datasets'])})
+                    else:
+                        selected = news.build_workspace(snap, filters)
+                        self._json({'data': project_identity.workspace(snap['datasets'], [a['id'] for a in selected['articles']])})
                 elif path == '/api/ai/run':
                     query = parse_qs(parsed.query)
                     run = app.view_snapshot()['datasets'].get('ai_runs', {}).get(query.get('run_id',[''])[0])

@@ -61,7 +61,8 @@
       // Candidate project IDs and pending groups never become registered projects.
       const registered=ids(article.project_ids).filter(pid=>projectIndex.has(pid));
       registered.forEach(pid=>{if(!explicit.some(evidence=>evidence.project_id===pid))write({company_id:null,project_id:pid,role:UNKNOWN,basis:'registered_article_project'});});
-      if(!explicit.length&&!associated.size&&!registered.length)write({company_id:null,project_id:null,role:UNKNOWN,basis:'article_metadata_only'});
+      const identityRegistered=ids(article.identity_project_ids).filter(pid=>projectIndex.has(pid));identityRegistered.forEach(pid=>write({company_id:null,project_id:pid,role:UNKNOWN,basis:'user_confirmed_project_identity'}));
+      if(!explicit.length&&!associated.size&&!registered.length&&!identityRegistered.length)write({company_id:null,project_id:null,role:UNKNOWN,basis:'article_metadata_only'});
       // Named candidates and progress expressions are independent observations.
       // They never borrow company roles or turn into registered project facts.
       (candidatesByArticle.get(aid)||[]).forEach(write);

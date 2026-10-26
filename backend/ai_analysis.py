@@ -14,7 +14,7 @@ from .ai_connection import headers_for
 from .network import request_bytes, error_info
 from .repository import now
 
-VERSION = 'ai-public-metadata-2'
+VERSION = 'ai-public-metadata-3'
 ANALYSIS_TASKS = ('extract', 'compare', 'briefing')
 ROLES = ['client', 'developer', 'tenant', 'operator', 'contractor', 'designer', 'equipment_supplier', 'financier', 'unknown']
 
@@ -48,6 +48,7 @@ program/site/phase와 1/2단계, 다른 부지를 혼합하지 않는다. MW의 
 국내외 위치와 AI 데이터센터 여부는 명시된 공개 근거가 부족하면 보류하고 추정으로 확정하지 않는다.
 위치 후보는 extractions의 kind=location, 사업 명칭 후보는 kind=project로 구분하며 이를 자동 분류 확정으로 취급하지 않는다.
 matches는 targets에서 주어진 ID만 선택한다. 이름만 비슷한 사업은 통합하지 말고 위치·회사·시점·단계 충돌을 reason에 적는다.
+비교 대상의 primary_source_article_id가 분석 기사 article_id와 같으면 자기 기사 대상이므로 matches에 반환하지 않는다. 자기 기사 외 다른 기사의 명칭 후보와만 비교한다.
 briefing은 이 입력 표본에서 관측되는 동향(trend), 새로 보도된 변화(change), 추가 확인할 사항(check)을 3~6개 제시한다.
 이전 사실과 비교 근거가 없으면 변경 확정으로 표현하지 않는다. 전체 시장 대표성·기사 누락 없음·수주 확정을 주장하지 않는다.
 briefing마다 해당 입력 기사 ID를 연결하고, 근거 부족은 확인 필요로 표현한다. 아래 JSON schema에 맞는 JSON만 반환한다.
@@ -66,25 +67,77 @@ def public_article(article, text_limit=1200):
             'published_at': article.get('published_at', ''), 'text': text}
 
 
-def shortlist(ds, articles):
-    corpus = ' '.join(a['text'] for a in articles).casefold()
+def _public_source(ds, article_id):
+    article = ds.get('articles', {}).get(article_id, {})
+    return article.get('mode') == 'live_metadata' and article.get('visibility') not in ('private', 'internal')
+
+
+def _target_fields(record):
+    # Explicit identity/geography only. Never copy notes, summaries, arbitrary
+    # nested objects, company observations or internal document links.
+    fields = {}
+    for name in ('program', 'program_id', 'site', 'site_id', 'phase', 'phase_id', 'location'):
+        value = record.get(name)
+        if isinstance(value, str) and value.strip():
+            fields[name] = value
+    return fields
+
+
+def comparison_targets(ds):
+    """Flatten current public target records; this does not reconcile identity."""
     candidates = []
     for project in ds.get('projects', {}).values():
-        # Registered public facts only; never summaries or company notes.
-        aids = project.get('article_ids', [])
-        if not any(ds.get('articles', {}).get(aid, {}).get('mode') == 'live_metadata' for aid in aids):
+        if project.get('visibility') in ('private', 'internal'):
             continue
-        candidates.append({'id': project['id'], 'name': project.get('name', ''),
-                           'location': project.get('location', ''), 'scope': project.get('scope', ''),
-                           'kind': 'registered_project'})
-    for mention in ds.get('project_mentions', {}).values():
-        aid = mention.get('article_id')
-        if ds.get('articles', {}).get(aid, {}).get('mode') != 'live_metadata':
+        aids = [aid for aid in project.get('article_ids', []) if _public_source(ds, aid)]
+        if not aids or not isinstance(project.get('name'), str) or not project.get('id'):
             continue
-        name = mention.get('name', '')
-        if name:
+        candidate = {'id': project['id'], 'name': project['name'],
+                     'kind': 'registered_project', 'source_article_ids': sorted(set(aids)), **_target_fields(project)}
+        if project.get('scope') in ('kr-ai', 'kr-dc', 'global-ai', 'unresolved'):
+            candidate['scope'] = project['scope']
+        candidates.append(candidate)
+    from .project_discovery import _stamp
+    for record in ds.get('project_mentions', {}).values():
+        if not isinstance(record, dict):
+            continue
+        aid = record.get('article_id')
+        if not _public_source(ds, aid) or record.get('visibility') in ('private', 'internal'):
+            continue
+        article = ds['articles'][aid]
+        if record.get('source_hash') and record['source_hash'] != _stamp(article):
+            continue  # Old observations are never evidence for changed metadata.
+        nested = isinstance(record.get('mentions'), list)
+        for mention in record['mentions'] if nested else [record]:
+            if not isinstance(mention, dict) or mention.get('visibility') in ('private', 'internal'):
+                continue
+            if mention.get('article_id', aid) != aid or not isinstance(mention.get('id'), str):
+                continue
+            name = mention.get('name')
+            if not isinstance(name, str) or not name.strip():
+                continue
+            if nested and not record.get('source_hash'):
+                # Compatibility for unstamped nested observations requires a
+                # current public title span. Legacy flat fixtures stay readable.
+                clean = lambda value: re.sub(r'\s+', ' ', value).strip().casefold()
+                if clean(name) not in clean(str(article.get('title', ''))):
+                    continue
+            cities = mention.get('cities', [])
+            location = ' · '.join(city for city in cities if isinstance(city, str)) if isinstance(cities, list) else ''
             candidates.append({'id': 'mention:' + mention['id'], 'name': name,
-                               'location': ' · '.join(mention.get('cities', [])), 'kind': 'unverified_name_observation'})
+                'location': location, 'kind': 'unverified_name_observation',
+                'source_article_ids': [aid], 'primary_source_article_id': aid, **_target_fields(mention)})
+    return candidates
+
+
+def comparison_target(ds, target_id):
+    """Resolve a stable target ID against current public nested or legacy data."""
+    return next((candidate for candidate in comparison_targets(ds) if candidate['id'] == target_id), None)
+
+
+def shortlist(ds, articles):
+    corpus = ' '.join(a['text'] for a in articles).casefold()
+    candidates = comparison_targets(ds)
     def score(candidate):
         generic = {'데이터센터', '센터', '사업', '프로젝트', '건립', '신축', '계획',
                    'data', 'center', 'centre', 'ai', 'aidc', 'dc', 'campus', 'project'}
@@ -96,19 +149,22 @@ def shortlist(ds, articles):
     candidates.sort(key=lambda candidate: (-score(candidate), candidate['id']))
     # Do not compare a candidate with the same article's own mention.
     selected_ids = {a['id'] for a in articles}
-    result, seen = [], set()
+    result, grouped = [], {}
     for candidate in candidates:
         # Repeated title mentions must not fill every comparison slot. This is
         # exact name+place grouping of comparison inputs, not project merging.
         if not score(candidate) or (candidate['id'].startswith('mention:') and
-                ds.get('project_mentions', {}).get(candidate['id'][8:], {}).get('article_id') in selected_ids):
+                len(selected_ids) == 1 and candidate.get('primary_source_article_id') in selected_ids):
             continue
-        marker = (candidate['kind'], candidate['name'].strip().casefold(), candidate.get('location', '').strip().casefold())
-        if marker not in seen:
+        marker = tuple(candidate.get(field, '').strip().casefold() for field in
+            ('kind', 'name', 'location', 'program', 'program_id', 'site', 'site_id', 'phase', 'phase_id'))
+        if marker not in grouped:
+            if len(result) == 15:
+                continue
             result.append(candidate)
-            seen.add(marker)
-        if len(result) == 15:
-            break
+            grouped[marker] = candidate
+        else:
+            grouped[marker]['source_article_ids'] = sorted(set(grouped[marker]['source_article_ids'] + candidate['source_article_ids']))
     return result
 
 
@@ -136,6 +192,7 @@ def validate_result(result, articles, targets, enabled_tasks=None):
             raise ValueError('허용하지 않은 AI 작업의 결과가 반환되었습니다.')
     source = {a['id']: a for a in articles}
     target_ids = {p['id'] for p in targets}
+    target_by_id = {p['id']: p for p in targets}
     for item in result['extractions'] + result['matches']:
         article = source.get(item['article_id'])
         quote = item['quote']
@@ -143,6 +200,8 @@ def validate_result(result, articles, targets, enabled_tasks=None):
             raise ValueError('AI가 제시한 근거 문장을 입력 기사에서 찾을 수 없습니다.')
         if 'target_id' in item and item['target_id'] not in target_ids:
             raise ValueError('AI 사업 비교 대상이 제공된 후보 목록 밖입니다.')
+        if 'target_id' in item and target_by_id[item['target_id']].get('primary_source_article_id') == item['article_id']:
+            raise ValueError('자기 기사의 명칭 후보와는 동일 사업을 비교할 수 없습니다.')
         if 'company_name' in item and item['company_name'] and item['company_name'] not in quote:
             raise ValueError('기업명 후보가 인용 근거에 없습니다.')
         item['validation_state'] = 'evidence_linked_ai_candidate'
@@ -344,9 +403,28 @@ def decide_match(repo, payload):
         match = next((m for m in run.get('result', {}).get('matches', []) if m['id'] == match_id), None)
         if not match or run.get('status') != 'completed':
             raise ValueError('존재하지 않는 AI 비교 후보입니다.')
+        target_id = match.get('target_id')
+        current_target = None
+        if target_id:
+            snapshots = run.get('target_snapshots')
+            snapshot = next((item for item in snapshots or [] if item.get('id') == target_id), None)
+            if snapshots is not None and snapshot is None:
+                raise ValueError('AI 실행 때 제공되지 않은 사업 비교 대상입니다.')
+            if decision == 'accepted_candidate':
+                current_target = comparison_target(ds, target_id)
+                if current_target is None:
+                    raise ValueError('비교 대상의 공개 근거가 변경되거나 사라졌습니다. 최신 표본으로 다시 확인하세요.')
+                if match.get('article_id') and not _public_source(ds, match['article_id']):
+                    raise ValueError('선택 기사의 공개 근거를 현재 확인할 수 없습니다.')
+                identity_fields = ('name', 'location', 'program', 'program_id', 'site', 'site_id', 'phase', 'phase_id')
+                if snapshot and any(snapshot.get(field, '') != current_target.get(field, '') for field in identity_fields):
+                    raise ValueError('비교 대상의 명칭·위치·단계가 변경되었습니다. 최신 표본으로 다시 확인하세요.')
         previous = ds.get('ai_match_decisions', {}).get(match_id, {})
         history = previous.get('history', []) + ([{'decision': previous['decision'], 'at': previous['at']}] if previous else [])
         ds.setdefault('ai_match_decisions', {})[match_id] = {'id': match_id, 'run_id': run_id, 'decision': decision,
                                                          'at': now(), 'history': history, 'merged': False}
+        if current_target:
+            ds['ai_match_decisions'][match_id].update(target_id=target_id,
+                source_article_ids=current_target['source_article_ids'])
     repo.transact(edit)
     return {'status': 'saved', 'merged': False}

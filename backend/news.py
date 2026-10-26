@@ -512,6 +512,15 @@ def build_workspace(snapshot, filters=None, as_of=None, *, include_catalog=False
     start = _dt(normalized['start']) if normalized['start'] else None
     end = _dt(normalized['end'])
     articles, invalid, future = [], 0, 0
+    identity_filter_articles = set()
+    identity_filter_projects = set()
+    if normalized['project_id'] and ds.get('project_identity_groups'):
+        from . import project_identity
+        for group in project_identity.workspace(ds)['active_groups']:
+            project_refs = {ref.split(':', 1)[1] for ref in group['member_refs'] if ref.startswith('project:')}
+            if normalized['project_id'] in project_refs | {'identity:' + group['id']}:
+                identity_filter_articles.update(group.get('source_article_ids', []))
+                identity_filter_projects.update(project_refs)
     catalog_articles = []
     archive_articles, excluded_topic, uncertain_topic = 0, 0, 0
     scope_counts = dict.fromkeys(('all','kr-dc','kr-ai','global-ai','unresolved'),0)
@@ -530,7 +539,7 @@ def build_workspace(snapshot, filters=None, as_of=None, *, include_catalog=False
             continue
         if normalized['source_ids'] and article.get('source_id') not in normalized['source_ids']:
             continue
-        if normalized['project_id'] and normalized['project_id'] not in _article_projects(article):
+        if normalized['project_id'] and normalized['project_id'] not in _article_projects(article) and article['id'] not in identity_filter_articles and not identity_filter_projects.intersection(_article_projects(article)):
             continue
         # Reuse this one enrichment/filter pass for the worldwide company picker.
         # Its period/query/source/project constraints remain identical; selecting a

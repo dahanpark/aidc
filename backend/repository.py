@@ -261,6 +261,9 @@ class JsonRepository:
             for record in datasets.get(dataset, {}).values():
                 if record.get(field) is not None:
                     check_ref(record[field], target, dataset + "." + field)
+        if datasets.get('project_identity_groups'):
+            from .project_identity import validate_records
+            validate_records(datasets)
         # Strategy JSON is durable evidence, with the same reference guarantees
         # as bookmarks and project relationships. Default board is virtual.
         from . import strategy
