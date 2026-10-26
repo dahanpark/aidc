@@ -14,7 +14,8 @@ from .ai_connection import headers_for
 from .network import request_bytes, error_info
 from .repository import now
 
-VERSION = 'ai-public-metadata-1'
+VERSION = 'ai-public-metadata-2'
+ANALYSIS_TASKS = ('extract', 'compare', 'briefing')
 ROLES = ['client', 'developer', 'tenant', 'operator', 'contractor', 'designer', 'equipment_supplier', 'financier', 'unknown']
 
 
@@ -44,6 +45,8 @@ SYSTEM = '''당신은 AIDC ATLAS의 공개 기사 근거 분석기다. 한국어
 사업자/발주처/테넌트/운영사/시공사/설계사/장비사/PF사 역할은 명시 문구만 후보로 추출한다.
 동시 등장만으로 참여나 계약을 만들지 않는다. 후보와 사실/해석을 구분한다.
 program/site/phase와 1/2단계, 다른 부지를 혼합하지 않는다. MW의 IT/수전/발전/MVA와 계획/실제를 구분하며 미확인은 그대로 둔다.
+국내외 위치와 AI 데이터센터 여부는 명시된 공개 근거가 부족하면 보류하고 추정으로 확정하지 않는다.
+위치 후보는 extractions의 kind=location, 사업 명칭 후보는 kind=project로 구분하며 이를 자동 분류 확정으로 취급하지 않는다.
 matches는 targets에서 주어진 ID만 선택한다. 이름만 비슷한 사업은 통합하지 말고 위치·회사·시점·단계 충돌을 reason에 적는다.
 briefing은 이 입력 표본에서 관측되는 동향(trend), 새로 보도된 변화(change), 추가 확인할 사항(check)을 3~6개 제시한다.
 이전 사실과 비교 근거가 없으면 변경 확정으로 표현하지 않는다. 전체 시장 대표성·기사 누락 없음·수주 확정을 주장하지 않는다.
@@ -51,13 +54,13 @@ briefing마다 해당 입력 기사 ID를 연결하고, 근거 부족은 확인 
 '''
 
 
-def public_article(article):
+def public_article(article, text_limit=1200):
     # User notes, internal links, bookmark notes and manually entered excerpts
     # are never part of the provider payload. Manual articles need future consent.
     if article.get('mode') != 'live_metadata' or article.get('visibility') == 'private':
         return None
     fields = [article.get('title'), article.get('feed_excerpt'), article.get('description')]
-    text = '\n'.join(v for v in fields if isinstance(v, str))[:2400]
+    text = '\n'.join(v for v in fields if isinstance(v, str))[:text_limit]
     return {'id': article['id'], 'title': str(article.get('title', ''))[:500],
             'publisher': str(article.get('publisher', ''))[:160],
             'published_at': article.get('published_at', ''), 'text': text}
@@ -125,8 +128,12 @@ def _validate(value, schema):
         raise ValueError('AI 결과 값이 올바르지 않습니다.')
 
 
-def validate_result(result, articles, targets):
+def validate_result(result, articles, targets, enabled_tasks=None):
     _validate(result, SCHEMA)
+    allowed = set(ANALYSIS_TASKS if enabled_tasks is None else enabled_tasks)
+    for task, field in (('extract', 'extractions'), ('compare', 'matches'), ('briefing', 'briefing')):
+        if task not in allowed and result[field]:
+            raise ValueError('허용하지 않은 AI 작업의 결과가 반환되었습니다.')
     source = {a['id']: a for a in articles}
     target_ids = {p['id'] for p in targets}
     for item in result['extractions'] + result['matches']:
@@ -146,27 +153,34 @@ def validate_result(result, articles, targets):
     return result
 
 
-def infer(profile, key, input_data):
+def infer(profile, key, input_data, *, schema=None, system=None, schema_name='atlas_analysis'):
     provider, model = profile['provider'], profile['model']
-    prompt = SYSTEM + json.dumps(SCHEMA, ensure_ascii=False)
+    if provider not in ('openai', 'anthropic', 'google') or not isinstance(model, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,120}', model):
+        raise ValueError('확인된 AI 제공사와 모델을 선택하세요.')
+    if not isinstance(schema_name, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', schema_name):
+        raise ValueError('AI 출력 형식 이름이 올바르지 않습니다.')
+    schema = SCHEMA if schema is None else schema
+    system = SYSTEM if system is None else system
+    tokens = _limit(profile, 'max_output_tokens', 1200, 128, 16000)
+    prompt = system + json.dumps(schema, ensure_ascii=False)
     content = json.dumps(input_data, ensure_ascii=False)
     if provider == 'openai':
         url = 'https://api.openai.com/v1/responses'
-        body = {'model': model, 'instructions': prompt, 'input': content, 'max_output_tokens': 5000,
-                'store': False, 'text': {'format': {'type': 'json_schema', 'name': 'atlas_analysis', 'strict': True, 'schema': SCHEMA}}}
+        body = {'model': model, 'instructions': prompt, 'input': content, 'max_output_tokens': tokens,
+                'store': False, 'text': {'format': {'type': 'json_schema', 'name': schema_name, 'strict': True, 'schema': schema}}}
         if model.startswith(('gpt-5', 'gpt-6')):
             body['reasoning'] = {'effort': 'low'}
     elif provider == 'anthropic':
         url = 'https://api.anthropic.com/v1/messages'
-        body = {'model': model, 'max_tokens': 5000, 'system': prompt,
+        body = {'model': model, 'max_tokens': tokens, 'system': prompt,
                 'messages': [{'role': 'user', 'content': content}],
-                'tools': [{'name': 'atlas_analysis', 'description': '기사 근거 후보와 동향', 'input_schema': SCHEMA}],
-                'tool_choice': {'type': 'tool', 'name': 'atlas_analysis'}}
+                'tools': [{'name': schema_name, 'description': '공개 기사 근거 분석 결과', 'input_schema': schema}],
+                'tool_choice': {'type': 'tool', 'name': schema_name}}
     else:
         url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
         body = {'systemInstruction': {'parts': [{'text': prompt}]},
                 'contents': [{'role': 'user', 'parts': [{'text': content}]}],
-                'generationConfig': {'responseMimeType': 'application/json', 'maxOutputTokens': 5000}}
+                'generationConfig': {'responseMimeType': 'application/json', 'maxOutputTokens': tokens}}
     raw = json.loads(request_bytes(url, allowed_hosts={urlsplit(url).hostname}, headers=headers_for(provider, key),
                                  data=json.dumps(body, ensure_ascii=False).encode('utf-8'), method='POST', timeout=55, max_bytes=250_000))
     if provider == 'openai':
@@ -177,7 +191,7 @@ def infer(profile, key, input_data):
     elif provider == 'anthropic':
         if raw.get('stop_reason') not in ('tool_use', 'end_turn'):
             raise ValueError('AI 응답이 완료되지 않았습니다.')
-        result = next((c['input'] for c in raw.get('content', []) if c.get('type') == 'tool_use' and c.get('name') == 'atlas_analysis'), None)
+        result = next((c['input'] for c in raw.get('content', []) if c.get('type') == 'tool_use' and c.get('name') == schema_name), None)
         usage = raw.get('usage', {})
     else:
         candidate = raw.get('candidates', [{}])[0]
@@ -188,6 +202,64 @@ def infer(profile, key, input_data):
     # No response payload, hidden reasoning, key or request headers are persisted.
     clean_usage = {k: v for k, v in usage.items() if isinstance(v, int) and not isinstance(v, bool) and v >= 0}
     return result, clean_usage
+
+
+def _limit(profile, name, default, minimum, maximum):
+    value = profile.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise ValueError('AI 한도 설정을 확인하세요: ' + name)
+    return value
+
+
+def input_chars(system, schema, input_data):
+    """Character budget, not a token estimate or a billing measurement."""
+    return len(system) + len(json.dumps(schema, ensure_ascii=False)) + len(json.dumps(input_data, ensure_ascii=False))
+
+
+def prepare_analysis(ds, profile, ids):
+    """Prepare exactly the public sample sent by analyse; safe for preview."""
+    if not isinstance(ids, list) or not ids or len(ids) > 20 or any(not isinstance(aid, str) for aid in ids):
+        raise ValueError('분석할 기사 1~20개를 선택하세요.')
+    if len(set(ids)) > _limit(profile, 'max_articles_per_run', 3, 1, 20):
+        raise ValueError('한 번의 분석 기사 한도를 초과했습니다. SETTINGS에서 조정하세요.')
+    text_limit = _limit(profile, 'article_text_chars', 1200, 200, 8000)
+    cap = _limit(profile, 'max_input_chars', 8000, 200, 100000)
+    _limit(profile, 'max_output_tokens', 1200, 128, 16000)
+    tasks = profile.get('enabled_tasks', list(ANALYSIS_TASKS))
+    if not isinstance(tasks, list) or any(not isinstance(task, str) for task in tasks):
+        raise ValueError('허용할 AI 작업 설정을 확인하세요.')
+    allowed = [task for task in ANALYSIS_TASKS if task in tasks]
+    if not allowed:
+        raise ValueError('기사 분석의 근거 추출·사업 비교·요약 중 허용할 작업을 선택하세요.')
+    system = SYSTEM + '\n이번 실행 허용 작업: ' + ', '.join(allowed) + '.\n'
+    for task, field in (('extract', 'extractions'), ('compare', 'matches'), ('briefing', 'briefing')):
+        if task not in allowed:
+            system += field + '는 허용하지 않으므로 반드시 빈 배열로 반환한다.\n'
+    articles = [public_article(ds.get('articles', {}).get(aid, {}), text_limit) for aid in dict.fromkeys(ids)]
+    if any(article is None for article in articles):
+        raise ValueError('자동 수집한 공개 기사만 분석할 수 있습니다. 고정 사례·사내 자료·수동 메모는 전송하지 않습니다.')
+    source_hashes = {article['id']: hashlib.sha256(json.dumps(article, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+                     for article in articles}
+    targets = shortlist(ds, articles) if 'compare' in allowed else []
+    input_data = {'articles': articles, 'targets': targets}
+    original_chars, original_targets = input_chars(system, SCHEMA, input_data), len(targets)
+    while targets and input_chars(system, SCHEMA, input_data) > cap:
+        targets.pop()
+    # Keep every selected article; shorten public text evenly and never below
+    # 200 characters for an article that originally had that much metadata.
+    while input_chars(system, SCHEMA, input_data) > cap:
+        reducible = [article for article in articles if len(article['text']) > 200]
+        if not reducible:
+            raise ValueError('AI 입력 문자 한도를 맞출 수 없습니다. 기사 표본을 줄이거나 SETTINGS의 입력 한도를 조정하세요. 유료 호출하지 않았습니다.')
+        for article in reducible:
+            article['text'] = article['text'][:max(200, len(article['text']) - 100)]
+    preview = {'input_chars': input_chars(system, SCHEMA, input_data), 'max_input_chars': cap,
+               'original_input_chars': original_chars, 'truncated': original_chars > cap,
+               'removed_targets': original_targets - len(targets), 'article_text_chars': text_limit,
+               'article_text_lengths': {a['id']: len(a['text']) for a in articles},
+               'enabled_tasks': allowed, 'max_output_tokens': profile.get('max_output_tokens', 1200)}
+    return {'input_data': input_data, 'system': system, 'enabled_tasks': allowed,
+            'preview': preview, 'source_hashes': source_hashes, 'source_text_chars': text_limit}
 
 
 def analyse(connection, payload):
@@ -201,32 +273,31 @@ def analyse(connection, payload):
         profile = ds.get('settings', {}).get('app', {}).get('ai', {})
         if not connection.status(ds)['connected']:
             raise ValueError('이 PC에서 AI를 연결한 뒤 분석하세요.')
-        if len(set(ids)) > profile.get('max_articles_per_run', 5):
-            raise ValueError('한 번의 분석 기사 한도를 초과했습니다. SETTINGS에서 조정하세요.')
-        articles = [public_article(ds.get('articles', {}).get(aid, {})) for aid in dict.fromkeys(ids)]
-        if any(a is None for a in articles):
-            raise ValueError('자동 수집한 공개 기사만 분석할 수 있습니다. 고정 사례·사내 자료·수동 메모는 전송하지 않습니다.')
-        targets = shortlist(ds, articles)
-        input_data = {'articles': articles, 'targets': targets}
-        stamp = hashlib.sha256(json.dumps([VERSION, profile['provider'], profile['model'], input_data], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+        prepared = prepare_analysis(ds, profile, ids)
+        input_data = prepared['input_data']
+        articles, targets = input_data['articles'], input_data['targets']
+        stamp = hashlib.sha256(json.dumps([VERSION, profile['provider'], profile['model'], input_data,
+            prepared['system'], prepared['preview']['max_output_tokens']], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
         cached = next((run for run in ds.get('ai_runs', {}).values() if run.get('input_hash') == stamp and run.get('status') == 'completed'), None)
         if cached:
             return {'status': 'cached', 'run_id': cached['id'], 'inference_called': False}
         day = datetime.now(timezone.utc).date().isoformat()
         used = sum(run.get('created_at', '').startswith(day) for run in ds.get('ai_runs', {}).values())
-        if used >= profile.get('daily_call_limit', 50):
+        if used >= _limit(profile, 'daily_call_limit', 10, 1, 10000):
             raise ValueError('오늘 AI 호출 한도에 도달했습니다. 실패·불명확 응답도 한도에 포함합니다.')
         ident = 'ai-' + uuid.uuid4().hex
         run = {'id': ident, 'created_at': now(), 'status': 'running', 'input_hash': stamp,
                'version': VERSION, 'provider': profile['provider'], 'model': profile['model'],
                'article_ids': [a['id'] for a in articles], 'target_ids': [p['id'] for p in targets],
                'input_scope': 'title_and_public_rss_description', 'full_text_verified': False,
+               'task': 'analysis', 'input_preview': prepared['preview'],
+               'source_hashes': prepared['source_hashes'], 'source_text_chars': prepared['source_text_chars'],
                'auto_merge': False, 'usage': None, 'input_snapshots': articles, 'target_snapshots': targets}
         connection.repo.transact(lambda records: records.setdefault('ai_runs', {}).update({ident: run}))
         try:
-            result, usage = infer(profile, connection.credential(profile), input_data)
+            result, usage = infer(profile, connection.credential(profile), input_data, system=prepared['system'])
             run['usage'] = usage
-            validate_result(result, articles, targets)
+            validate_result(result, articles, targets, prepared['enabled_tasks'])
             for index, match in enumerate(result['matches']):
                 match['id'] = ident + ':match:' + str(index)
             run.update(status='completed', result=result, finished_at=now())
@@ -246,10 +317,16 @@ def workspace(ds, article_ids):
     selected = set(article_ids)
     runs = sorted(ds.get('ai_runs', {}).values(), key=lambda r: r.get('created_at', ''), reverse=True)
     # A partial overlap must not display a summary of articles outside the scope.
-    applicable = [r for r in runs if set(r.get('article_ids', [])) <= selected]
+    applicable = [r for r in runs if r.get('task') not in ('strategy', 'classify') and set(r.get('article_ids', [])) <= selected]
     latest = next((r for r in applicable if r.get('status') == 'completed'), None)
-    source_changed = bool(latest and any(public_article(ds.get('articles', {}).get(a['id'], {})) != a
-                                        for a in latest.get('input_snapshots', [])))
+    if latest and latest.get('source_hashes'):
+        source_changed = any(hashlib.sha256(json.dumps(public_article(ds.get('articles', {}).get(aid, {}),
+            latest.get('source_text_chars', 1200)), ensure_ascii=False, sort_keys=True).encode()).hexdigest() != stamp
+            for aid, stamp in latest['source_hashes'].items())
+    else:
+        # Legacy runs used 2400-character metadata snapshots.
+        source_changed = bool(latest and any(public_article(ds.get('articles', {}).get(a['id'], {}), 2400) != a
+                                            for a in latest.get('input_snapshots', [])))
     last_published = max((a.get('published_at', '') for a in latest.get('input_snapshots', [])), default='') if latest else ''
     newer = sum(ds.get('articles', {}).get(aid, {}).get('published_at', '') > last_published for aid in selected) if latest else 0
     return {'latest': latest, 'source_changed': source_changed, 'newer_articles_count': newer,

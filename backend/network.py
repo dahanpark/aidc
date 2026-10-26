@@ -62,6 +62,10 @@ def error_info(error):
             return {'code': 'dns', 'message': 'DNS 이름 확인 실패 · 회사 DNS/프록시 설정을 확인하세요.'}
         if isinstance(current, (TimeoutError, socket.timeout)):
             return {'code': 'timeout', 'message': '접속 시간 초과 · 프록시/방화벽과 대상 도메인 허용을 확인하세요.'}
+        if isinstance(current, ssl.SSLError):
+            return {'code': 'tls', 'message': 'TLS 연결 실패 · 회사 프록시와 인증서 설정을 확인하세요.'}
+        if isinstance(current, (ConnectionError, http.client.HTTPException)):
+            return {'code': 'connection', 'message': '연결이 끊기거나 응답이 중단되었습니다. 회사 네트워크와 제공사 상태를 확인하세요.'}
         current = getattr(current, 'reason', None) or current.__cause__
         if not isinstance(current, BaseException):
             break

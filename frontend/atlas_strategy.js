@@ -1,0 +1,156 @@
+(function (global) {
+  'use strict';
+  const list = value => Array.isArray(value) ? value : [];
+  const str = value => value == null ? '' : String(value);
+  let sequence = 0;
+  const stableId = prefix => prefix + '-' + (global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : Date.now().toString(36) + '-' + (++sequence).toString(36));
+  function mount(root, opts = {}) {
+    const doc = root.ownerDocument || global.document;
+    let workspace = opts.workspace || {}, board = workspace.active_board || list(workspace.boards)[0];
+    let selectedCompany = board && list(board.companies)[0] && board.companies[0].id;
+    let selectedRows = [], selectedArticles = [], prepared = null, consent = false, busy = false, error = '', notice = '';
+    let formKind = '', draft = '', aliases = '', from = '', to = '';
+    const articles = list(opts.articles);
+    const articleIndex = new Map(articles.map(a => [str(a.id), a]));
+    const connection = opts.connection || {};
+    const configured = () => connection.configured === true || connection.key_configured === true || connection.credential_configured === true || connection.connected === true;
+    const articleLimit = () => Math.min(3, Math.max(1, Number(connection.max_articles_per_run || connection.max_articles || connection.limits?.max_articles_per_run || connection.limits?.max_articles || 3)));
+    function el(tag, text, cls) { const node = doc.createElement(tag); if (text !== undefined) node.textContent = str(text); if (cls) node.className = cls; return node; }
+    function attr(node, key, value) { node.setAttribute(key, str(value)); return node; }
+    function button(text, action, disabled = false) { const node = el('button', text); node.type = 'button'; node.disabled = disabled; node.addEventListener('click', action); return node; }
+    function field(label, node) { const wrap = el('label', undefined, 'strategy-field'); wrap.append(el('span', label), node); return wrap; }
+    function input(value, action, type = 'text') { const node = el('input'); node.type = type; node.value = value; node.disabled = busy; node.addEventListener('input', () => action(node.value)); return node; }
+    function invalidate() { prepared = null; consent = false; error = ''; }
+    function selection() { return {board_id: board.id, company_id: selectedCompany, row_ids: selectedRows.slice(), article_ids: selectedArticles.slice()}; }
+    function accept(next) {
+      if (!next) return;
+      workspace = next.workspace || next;
+      board = workspace.active_board || list(workspace.boards).find(b => b.id === board?.id) || list(workspace.boards)[0];
+      if (!list(board?.companies).some(c => c.id === selectedCompany)) selectedCompany = list(board?.companies)[0]?.id;
+      selectedRows = selectedRows.filter(id => list(board?.rows).some(r => r.id === id));
+    }
+    async function run(action, success) {
+      if (busy) return;
+      busy = true; error = ''; render();
+      try { const result = await action(); if (success) success(result); }
+      catch (err) { error = str(err.message || err); }
+      finally { busy = false; render(); }
+    }
+    function bounded(values, id, checked, limit) {
+      if (!checked) return values.filter(v => v !== id);
+      if (values.includes(id)) return values;
+      if (values.length >= limit) { error = '최대 ' + limit + '개까지 선택할 수 있습니다.'; return values; }
+      return values.concat(id);
+    }
+    function check(text, checked, change, disabled = false) {
+      const node = el('input'); node.type = 'checkbox'; node.checked = checked; node.disabled = disabled;
+      node.addEventListener('change', () => change(node.checked));
+      const label = el('label', undefined, 'strategy-check'); label.append(node, el('span', text)); return label;
+    }
+    function source(id) {
+      const article = articleIndex.get(str(id));
+      const node = button('기사: ' + (article?.title || id), () => opts.openArticles?.([id]));
+      node.className = 'strategy-source'; node.disabled = !opts.openArticles;
+      if (article?.published_at || article?.date) node.append(el('small', ' · ' + str(article.published_at || article.date).slice(0, 10)));
+      return node;
+    }
+    function summaryFor(companyId, rowId) {
+      return Object.values(workspace.summaries || {}).find(s => s.board_id === board.id && s.company_id === companyId && s.row_id === rowId);
+    }
+    function table() {
+      const scroll = el('div', undefined, 'strategy-table-scroll'); attr(scroll, 'tabindex', '0'); attr(scroll, 'aria-label', '전략표 가로 스크롤');
+      const grid = el('table', undefined, 'strategy-table'), caption = el('caption', board.title || '전략표');
+      grid.append(caption); const head = el('thead'), tr = el('tr'); tr.append(attr(el('th', '구분'), 'scope', 'col'));
+      list(board.companies).forEach(c => tr.append(attr(el('th', c.name), 'scope', 'col'))); head.append(tr); grid.append(head);
+      const body = el('tbody');
+      list(board.rows).forEach(row => {
+        const line = el('tr'); line.append(attr(el('th', row.label), 'scope', 'row'));
+        list(board.companies).forEach(company => {
+          const cell = el('td'), summary = summaryFor(company.id, row.id), paragraphs = list(summary?.paragraphs).slice(0, 3);
+          if (!paragraphs.length) cell.append(el('span', summary ? '자료 부족 / 확인 필요' : '자료 부족 / AI 미실행', 'strategy-empty'));
+          else {
+            const bullets = el('ul'); paragraphs.forEach(p => { const li = el('li'); li.append(el('p', p.text)); if (p.quote) li.append(el('blockquote', p.quote)); if (p.article_id) li.append(source(p.article_id)); bullets.append(li); }); cell.append(bullets);
+            list(summary.article_ids).filter(id => !paragraphs.some(p => p.article_id === id)).forEach(id => cell.append(source(id)));
+          }
+          if (summary) {
+            const status = [summary.stale ? '오래된 요약 · 재점검 필요' : '', summary.updated_at, summary.provider, summary.model].filter(Boolean).join(' · ');
+            if (status) cell.append(el('small', status, summary.stale ? 'strategy-stale' : 'strategy-meta'));
+          }
+          line.append(cell);
+        }); body.append(line);
+      }); grid.append(body); scroll.append(grid); return scroll;
+    }
+    function addForm(container) {
+      if (!formKind) return;
+      const form = el('form', undefined, 'strategy-add-form');
+      const label = {company: '회사명', row: '행 이름', category: '카테고리 이름'}[formKind];
+      const name = input(draft, v => { draft = v; }); attr(name, 'aria-label', label); name.required = true; name.maxLength = 100;
+      form.append(field(label, name));
+      if (formKind === 'company') form.append(field('별칭 (쉼표로 구분)', input(aliases, v => { aliases = v; })));
+      if (formKind === 'category') form.append(el('p', '새 카테고리는 현재 회사·행 구성을 복사하여 시작합니다. 이후 회사·행을 추가할 수 있습니다.'));
+      const save = el('button', '추가 저장'); save.type = 'submit'; save.disabled = busy || !opts.saveBoard;
+      form.append(save, button('취소', () => {formKind = ''; draft = ''; aliases = ''; render();}, busy));
+      form.addEventListener('submit', event => {
+        event.preventDefault(); if (!draft.trim() || busy) return;
+        let payload;
+        if (formKind === 'category') payload = {id: stableId('board'), title: draft.trim(), companies: list(board?.companies).map(c => ({...c, aliases: list(c.aliases).slice()})), rows: list(board?.rows).map(r => ({...r}))};
+        else { payload = {...board, companies: list(board.companies).map(c => ({...c})), rows: list(board.rows).map(r => ({...r}))};
+          if (formKind === 'company') payload.companies.push({id: stableId('company'), name: draft.trim(), aliases: aliases.split(',').map(v => v.trim()).filter(Boolean)});
+          else payload.rows.push({id: stableId('row'), label: draft.trim()}); }
+        run(() => opts.saveBoard(payload), result => {accept(result); formKind = ''; draft = ''; aliases = ''; invalidate(); notice = '추가 항목을 저장했습니다.';});
+      }); container.append(form);
+    }
+    function controls(container) {
+      const panel = el('section', undefined, 'strategy-analysis'); panel.append(el('h4', '선택 셀의 공개 기사 근거 요약'));
+      panel.append(el('p', '회사 1개 · 행 최대 3개 · 공개 기사 최대 ' + articleLimit() + '개. 미리보기와 전송 동의 후 선택 셀만 분석합니다.'));
+      const select = el('select'); attr(select, 'aria-label', '분석 회사');
+      list(board.companies).forEach(c => {const option = el('option', c.name); option.value = c.id; select.append(option);}); select.value = selectedCompany || ''; select.disabled = busy;
+      select.addEventListener('change', () => {selectedCompany = select.value; selectedArticles = []; invalidate(); render();}); panel.append(field('회사', select));
+      const rows = el('fieldset'); rows.append(el('legend', '행 선택 (최대 3개)'));
+      list(board.rows).forEach(r => rows.append(check(r.label, selectedRows.includes(r.id), checked => {invalidate(); selectedRows = bounded(selectedRows, r.id, checked, 3); render();}, busy))); panel.append(rows);
+      const dates = el('div', undefined, 'strategy-dates');
+      dates.append(field('기사 시작일', input(from, value => {from = value; selectedArticles = []; invalidate(); render();}, 'date')), field('기사 종료일', input(to, value => {to = value; selectedArticles = []; invalidate(); render();}, 'date'))); panel.append(dates);
+      const refs = el('fieldset'); refs.append(el('legend', '공개 기사 선택'));
+      const related = list(workspace.company_articles?.[selectedCompany]);
+      const candidates = articles.filter(a => related.includes(a.id)).filter(a => {const date = str(a.published_at || a.date).slice(0,10); return (!from || date >= from) && (!to || date <= to);});
+      if (!candidates.length) refs.append(el('p', '자료 부족 · 이 회사에 연결된 공개 기사가 없습니다.'));
+      candidates.forEach(a => refs.append(check((a.published_at || a.date || '').slice(0,10) + ' ' + a.title, selectedArticles.includes(a.id), checked => {invalidate(); selectedArticles = bounded(selectedArticles, a.id, checked, articleLimit()); render();}, busy))); panel.append(refs);
+      panel.append(el('p', configured() ? 'AI 연결 설정 있음 · 전송 전 실제 입력 확인' : '연결 필요 · SETTINGS에서 개인 AI 키를 연결하세요.', 'strategy-connection'));
+      const valid = selectedCompany && selectedRows.length && selectedArticles.length && (!from || !to || from <= to);
+      panel.append(button('전송 표본 미리보기', () => run(() => opts.preview(selection()), result => {prepared = result; consent = false;}), busy || !valid || !opts.preview || !configured()));
+      if (prepared) {
+        const preview = el('section', undefined, 'strategy-preview'); preview.append(el('h5', '실제 전송 준비된 공개 기사'));
+        list(prepared.articles).forEach(a => {const article = el('article'); article.append(el('strong', a.title || a.id), el('p', a.text || a.public_text || a.content || a.summary || a.excerpt || '')); preview.append(article);});
+        ['limits', 'input_chars', 'input_char_count', 'max_input_chars', 'max_output_tokens', 'output_tokens', 'provider', 'model'].forEach(key => {if (prepared[key] !== undefined) preview.append(el('p', key + ': ' + (typeof prepared[key] === 'object' ? JSON.stringify(prepared[key]) : prepared[key])));});
+        preview.append(check('위 공개 기사 메타데이터 전송과 개인 API 사용량 발생에 동의합니다.', consent, checked => {consent = checked; render();}, busy));
+        preview.append(button('선택 셀 AI 분석 실행', () => {
+          if (!consent || !configured() || !prepared || !valid || busy) return;
+          run(() => opts.analyse({...selection(), consent_public_metadata: true}), result => {accept(result); invalidate(); notice = '선택 셀 분석 결과를 갱신했습니다.';});
+        }, busy || !consent || !configured() || !valid || !opts.analyse)); panel.append(preview);
+      }
+      container.append(panel);
+    }
+    function render() {
+      root.replaceChildren(); root.className = (root.className || '').split(/\s+/).filter(c => c && c !== 'atlas-strategy').concat('atlas-strategy').join(' ');
+      attr(root, 'aria-busy', busy ? 'true' : 'false');
+      root.append(el('h3', 'Con. Status — 국내 DC.AIDC 전략 (건설사)'));
+      root.append(el('p', '기사 근거 기반 전략표 · PC = Precast Concrete · 계획/실제와 수주/준공은 출처 문맥을 확인하세요.', 'strategy-meta'));
+      const tabs = el('div', undefined, 'strategy-tabs'); attr(tabs, 'role', 'tablist'); attr(tabs, 'aria-label', '전략 카테고리');
+      list(workspace.boards).forEach(b => {const tab = button(b.title, () => {
+        if (!opts.loadBoard || b.id === board?.id) return;
+        run(() => opts.loadBoard(b.id), result => {accept(result); selectedRows = []; selectedArticles = []; invalidate();});
+      }, busy); attr(tab, 'role', 'tab'); attr(tab, 'aria-selected', b.id === board?.id); tabs.append(tab);}); root.append(tabs);
+      if (error) root.append(attr(el('p', error, 'strategy-error'), 'role', 'alert'));
+      const status = el('p', busy ? '처리 중…' : notice, 'strategy-status'); attr(status, 'role', 'status'); attr(status, 'aria-live', 'polite'); root.append(status);
+      const toolbar = el('div', undefined, 'strategy-toolbar');
+      ['category', 'company', 'row'].forEach(kind => toolbar.append(button({category:'카테고리 추가',company:'회사 추가',row:'행 추가'}[kind], () => {formKind = kind; draft = ''; aliases = ''; render();}, busy || !opts.saveBoard || (!board && kind !== 'category'))));
+      toolbar.append(button('A3 가로 출력 HTML', () => run(() => opts.exportBoard(board.id), () => {notice = 'A3 가로 출력 HTML을 요청했습니다.';}), busy || !board || !opts.exportBoard)); root.append(toolbar); addForm(root);
+      if (!board) {root.append(el('p', '자료 부족 · 전략 카테고리를 추가하세요.')); return;}
+      root.append(table()); controls(root);
+    }
+    render();
+    return {update(next) {accept(next); invalidate(); render();}, destroy() {root.replaceChildren();}, getSelection: selection};
+  }
+  global.AtlasStrategy = {mount};
+  if (typeof module !== 'undefined' && module.exports) module.exports = global.AtlasStrategy;
+})(typeof window !== 'undefined' ? window : globalThis);

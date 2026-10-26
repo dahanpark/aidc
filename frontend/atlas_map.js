@@ -99,17 +99,20 @@
         const name=group.length>1?'':String(first.name||'').slice(0,kind==='korea'?18:13);
         if(name)g.append(svgNode('text',{x:r+5*px,y:4*px,'font-size':11*px,'stroke-width':3*px,class:'atlas-map-marker-label'},name));
         g.append(svgNode('title',{},label));
-        const action=()=>clusterSelect(group);g.addEventListener('click',action);g.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();action();}});points.append(g);
+        const action=()=>clusterSelect(group);g.addEventListener('click',event=>{if(!ignoreCountryClick&&(event.button===undefined||event.button===0))action();});g.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();action();}});points.append(g);
       });
     }
     svg.addEventListener('pointerdown',event=>{
-      if(event.button!==0||event.target.closest('[data-marker-id]'))return;
-      ignoreCountryClick=false;viewChanged=true;drag={x:event.clientX,y:event.clientY,camera:{...camera}};svg.setPointerCapture(event.pointerId);svg.classList.add('dragging');
+      if(drag||![0,1].includes(event.button))return;
+      if(event.button===0&&event.target.closest('[data-marker-id]')){ignoreCountryClick=false;return;}
+      if(event.button===1)event.preventDefault();
+      ignoreCountryClick=event.button===1;viewChanged=true;drag={x:event.clientX,y:event.clientY,camera:{...camera},pointerId:event.pointerId,button:event.button};svg.setPointerCapture(event.pointerId);svg.classList.add('dragging');
     });
-    svg.addEventListener('pointermove',event=>{if(!drag)return;const ratio=drag.camera.w/svg.getBoundingClientRect().width;
+    svg.addEventListener('pointermove',event=>{if(!drag||drag.pointerId!==event.pointerId)return;if(typeof event.buttons==='number'&&!(event.buttons&(drag.button===1?4:1))){end(event);return;}const ratio=drag.camera.w/svg.getBoundingClientRect().width;
       if(Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>4)ignoreCountryClick=true;
       camera={...drag.camera,x:drag.camera.x-(event.clientX-drag.x)*ratio,y:drag.camera.y-(event.clientY-drag.y)*ratio};apply();});
-    const end=()=>{drag=null;svg.classList.remove('dragging');};svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
+    const end=event=>{if(!drag||drag.pointerId!==event.pointerId)return;drag=null;svg.classList.remove('dragging');if(svg.hasPointerCapture?.(event.pointerId))svg.releasePointerCapture(event.pointerId);};svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);svg.addEventListener('lostpointercapture',end);
+    const preventMiddle=event=>{if(event.button===1)event.preventDefault();};svg.addEventListener('mousedown',preventMiddle);svg.addEventListener('auxclick',preventMiddle);
     svg.addEventListener('wheel',event=>{event.preventDefault();const rect=svg.getBoundingClientRect();if(!rect.width||!rect.height)return;const a=[camera.x+(event.clientX-rect.left)/rect.width*camera.w,camera.y+(event.clientY-rect.top)/rect.height*camera.h],delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?rect.height:1);zoom(Math.exp(-Math.max(-150,Math.min(150,delta))*.002),a);},{passive:false});
     svg.addEventListener('keydown',event=>{if(event.target!==svg)return;
       if(['+','=','-'].includes(event.key)){event.preventDefault();zoom(event.key==='-'?1/1.5:1.5);}

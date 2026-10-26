@@ -358,6 +358,10 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
             save(coverage=coverage)
             continue
         save(articles, coverage)
+    # A stop may arrive while the last request is in flight. Keep that action
+    # visible even when the response exhausted the queue in the same instant.
+    if job.get('cancel_requested'):
+        job['status'] = 'cancelled'
     if job['status'] == 'cancelled':
         pass
     elif pending:
@@ -367,6 +371,18 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
     else:
         job['status'] = 'completed'
     job['can_resume'] = bool(pending or any(w.get('attempts',0)<3 for w in job['failed_windows']))
+    job['batch_request_count'] = calls
+    job['batch_parsed_items'] = received
+    job['remaining_windows'] = len(pending)
+    job['retryable_failed_windows'] = sum(w.get('attempts', 0) < 3 for w in job['failed_windows'])
+    if job['status'] == 'cancelled':
+        job['stop_reason'] = 'user_cancelled'
+    elif pending:
+        job['stop_reason'] = 'article_limit' if received >= max_articles else 'request_limit'
+    elif job['failed_windows']:
+        job['stop_reason'] = 'source_errors'
+    else:
+        job['stop_reason'] = 'queue_exhausted'
     job['finished_at'] = _now()
     save()
     return job

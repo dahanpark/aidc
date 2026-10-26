@@ -27,7 +27,7 @@ from .project_discovery import enrich_discovery, build_project_discovery
 from .attention import build_attention, apply_acknowledgement
 from .projection_cache import ProjectionCache
 from .ai_connection import AIConnection
-from . import ai_analysis
+from . import ai_analysis, strategy, strategy_analysis, ai_classification
 
 
 class SnapshotIntegrityError(RuntimeError):
@@ -199,6 +199,7 @@ class AtlasApplication:
         focus_company = focus_company.strip() if focus_company.strip() in known_companies else None
         data['ontology'] = build_ontology(snapshot,data['news'], focus_company_id=focus_company)
         data['attention'] = build_attention(snapshot,data['news'])
+        data['strategy'] = strategy.workspace(datasets, [a['id'] for a in data['news']['articles']])
         data['ai'] = {'connection': ai_status,
                       **ai_analysis.workspace(datasets, [a['id'] for a in data['news']['articles']])}
         from .geo import build_map_workspace
@@ -418,6 +419,24 @@ class AtlasApplication:
             return self.ai.disconnect()
         if operation == 'ai/forget':
             return self.ai.disconnect(forget=True, delete_env=payload.get('delete_environment') is True)
+        if operation == 'strategy/save':
+            self.repo.transact(lambda ds: strategy.save_board(ds, payload))
+            return {'status': 'saved'}
+        if operation == 'strategy/preview':
+            return strategy_analysis.preview(self.ai, payload)
+        if operation == 'strategy/analyse':
+            return strategy_analysis.run(self.ai, payload)
+        if operation == 'ai/classify-preview':
+            return ai_classification.preview(self.ai, payload)
+        if operation == 'ai/classify':
+            return ai_classification.analyse(self.ai, payload)
+        if operation == 'ai/preview':
+            ds = self.view_snapshot()['datasets']
+            ids = payload.get('article_ids')
+            if not isinstance(ids, list) or not ids or any(not isinstance(i, str) for i in ids):
+                raise ValueError('분석할 기사 ID를 선택하세요.')
+            prepared = ai_analysis.prepare_analysis(ds, ds.get('settings', {}).get('app', {}).get('ai', {}), ids)
+            return {'articles': prepared['input_data']['articles'], 'targets': prepared['input_data']['targets'], **prepared['preview']}
         if operation == 'ai/analyse':
             return ai_analysis.analyse(self.ai, payload)
         if operation == 'ai/match-decision':
@@ -503,11 +522,15 @@ class AtlasApplication:
                     settings['new_article_days'] = value
                 if 'ai_limits' in payload:
                     limits = payload['ai_limits']
-                    bounds = {'max_articles_per_run': (1, 20), 'daily_call_limit': (1, 500)}
-                    if (not isinstance(limits, dict) or set(limits) - set(bounds) or
+                    bounds = {'max_articles_per_run': (1, 20), 'daily_call_limit': (1, 500), 'max_input_chars': (4000, 40000), 'max_output_tokens': (300, 4000), 'article_text_chars': (200, 2400)}
+                    if (not isinstance(limits, dict) or set(limits) - (set(bounds) | {'enabled_tasks'}) or
                             any(not isinstance(v, int) or isinstance(v, bool) or not bounds[k][0] <= v <= bounds[k][1]
-                                for k, v in limits.items())):
+                                for k, v in limits.items() if k != 'enabled_tasks')):
                         raise ValueError('AI 분석 표본은 1~20개, 하루 호출 한도는 1~500회입니다.')
+                    if 'enabled_tasks' in limits:
+                        tasks = limits['enabled_tasks']
+                        if (not isinstance(tasks, list) or not tasks or any(not isinstance(t, str) or t not in ('extract','compare','briefing','classify','strategy') for t in tasks)):
+                            raise ValueError('허용할 AI 작업을 하나 이상 선택하세요.')
                     settings.setdefault('ai', {}).update(limits)
                 if 'visualization' in payload:
                     visual=payload['visualization']
@@ -621,6 +644,24 @@ def make_server(app, port=8765):
                     self._json({'app':'aidc-atlas', 'version':__version__, 'identity':app.identity, 'csrf_token':app.csrf})
                 elif path == '/api/ai/status':
                     self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
+                elif path == '/api/ai/run':
+                    query = parse_qs(parsed.query)
+                    run = app.view_snapshot()['datasets'].get('ai_runs', {}).get(query.get('run_id',[''])[0])
+                    if not run:
+                        raise ValueError('분석 결과를 찾을 수 없습니다.')
+                    self._json({'data': run})
+                elif path == '/api/strategy':
+                    query = parse_qs(parsed.query)
+                    snap = app.view_snapshot()
+                    scoped = news.build_workspace(snap, filters)
+                    self._json({'data': strategy.workspace(snap['datasets'], [a['id'] for a in scoped['articles']], query.get('board_id',['construction'])[0])})
+                elif path == '/api/strategy/report':
+                    query = parse_qs(parsed.query)
+                    snap = app.view_snapshot()
+                    scoped = news.build_workspace(snap, filters)
+                    ws = strategy.workspace(snap['datasets'], [a['id'] for a in scoped['articles']], query.get('board_id',['construction'])[0])
+                    report = strategy.render_report(ws, snap['datasets'].get('articles', {}), now())
+                    self._send(report.encode('utf-8') if isinstance(report,str) else report, 'text/html; charset=utf-8', filename='AIDC-ATLAS-Strategy-A3.html')
                 elif path == "/api/state":
                     self._json(app.state(filters))
                 elif path == '/api/updates':

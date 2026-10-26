@@ -50,7 +50,9 @@ class WindowsVault:
         api, Credential = self._api()
         pointer = ctypes.POINTER(Credential)()
         if not api.CredReadW(self._target(provider), 1, 0, ctypes.byref(pointer)):
-            return None
+            if ctypes.get_last_error() == 1168:  # ERROR_NOT_FOUND
+                return None
+            raise ValueError('Windows 자격 증명을 읽지 못했습니다. 이 PC의 보안 정책과 사용자 로그인을 확인하세요.')
         try:
             record = pointer.contents
             return ctypes.string_at(record.CredentialBlob, record.CredentialBlobSize).decode('utf-16-le')

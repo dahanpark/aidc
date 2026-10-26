@@ -261,6 +261,20 @@ class JsonRepository:
             for record in datasets.get(dataset, {}).values():
                 if record.get(field) is not None:
                     check_ref(record[field], target, dataset + "." + field)
+        # Strategy JSON is durable evidence, with the same reference guarantees
+        # as bookmarks and project relationships. Default board is virtual.
+        from . import strategy
+        for board in datasets.get('strategy_boards', {}).values():
+            strategy.save_board({}, board)
+        strategy_boards = {b['id']: b for b in strategy.boards(datasets)}
+        for summary in datasets.get('strategy_summaries', {}).values():
+            board = strategy_boards.get(summary.get('board_id'))
+            if not board or summary.get('company_id') not in {c['id'] for c in board['companies']} or summary.get('row_id') not in {r['id'] for r in board['rows']}:
+                raise ValueError('Dangling strategy board/company/row reference')
+            check_list(summary, 'article_ids', 'articles', 'strategy_summaries.article_ids')
+            for paragraph in summary.get('paragraphs', []):
+                if not isinstance(paragraph, dict) or paragraph.get('article_id') not in summary.get('article_ids', []):
+                    raise ValueError('Dangling strategy paragraph source')
         for record in datasets.get("articles", {}).values():
             for field in ("url", "canonical_url"):
                 if field in record:
