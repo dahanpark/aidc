@@ -115,6 +115,10 @@ class AIConnection:
             return self._connect(payload)
 
     def _connect(self, payload):
+        if payload.get('provider') == 'corporate':
+            return {'status':'protocol_required', 'connected':False, 'sent_to_provider':False,
+                    'inference_called':False, 'code':'corporate_protocol_required',
+                    'message':'사내 API는 공개 OpenAI 키와 별도입니다. 인증 헤더·요청 JSON·응답 JSON·전송 보안 정책 확인 후 전용 연결을 적용해야 합니다. 키를 저장하거나 전송하지 않았습니다.'}
         old = self.read_snapshot()['datasets'].get('settings', {}).get('app', {}).get('ai', {})
         key = payload.get('key', '')
         provider = payload.get('provider', '')

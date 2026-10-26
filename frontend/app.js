@@ -748,12 +748,24 @@
       add(card,articleRefs(h.article_ids));grid.append(card);});root.append(grid);
   }
   function coverageRows(){const coverage=S.data?.news?.coverage;return Array.isArray(coverage)?coverage:Array.isArray(coverage?.sources)?coverage.sources:Array.isArray(coverage?.rows)?coverage.rows:[];}
+  async function collectionDiagnostic(){
+    const content=el('div');
+    try{
+      const response=await api('/api/collection/status',undefined,'GET'),d=response.data||response;
+      const labels={worker_missing:'진행 상태만 남음 · 실제 수집 작업 없음',running:'수집 실행 중',failed:'수집 처리 실패',source_errors:'출처 연결 오류',saved:'신규 기사 저장',duplicates_only:'이미 저장된 기사만 발견',no_matching_metadata:'응답은 있으나 기간·출처·주제 조건에 맞는 기사 없음',no_results:'조회 결과 없음'};
+      add(content,el('p','callout',d.note),el('p','muted',`실제 작업 ${d.worker_alive?'실행 중':'없음'} · 수집 잠금 ${d.collection_lock_held?'사용 중':'없음'} · HTTPS 프록시 ${d.environment?.https_proxy_configured?'설정':'미설정'} · PAC ${d.environment?.pac_detected?'감지':'미감지'}`));
+      (d.jobs||[]).forEach(j=>{content.append(el('p',j.worker_missing||j.status==='failed'?'callout warning':'callout',`${j.id} · ${labels[j.result_code]||j.result_code} · 누적 요청 ${j.request_count}회 / 응답 ${j.returned_items}건 / 신규 ${j.new_articles}건 / 중복 ${j.duplicate_count}건 · 오류 ${j.error_code||'없음'}`));if(j.worker_missing)content.append(button('원래 조건으로 수집 재개','button small',()=>{$('#modal').close();collectNews(j.id);}));});
+      content.append(el('pre','note',JSON.stringify(d.coverage_error_counts||{},null,2)));
+      content.append(button('진단 JSON 내려받기 · 키/기사/검색어 제외','button',()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'})),a=el('a');a.href=url;a.download='AIDC-ATLAS-collection-diagnostic.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}));
+      modal('이 PC의 기사 수집 진단',content);
+    }catch(e){toast(`수집 진단 API를 확인하지 못했습니다. 실행 중인 백엔드에 최신 소스 적용 여부를 확인하세요. ${e.message}`,true);}
+  }
   function renderJobStatus(root,compact=false){
     const jobs=nitems('jobs').slice().sort((a,b)=>text(b.updated_at||b.created_at,'').localeCompare(text(a.updated_at||a.created_at,'')));const latest=jobs.find(j=>S.period==='3y'&&S.scope==='all'&&j.id===S.data?.settings?.baseline_job_id)||jobs.find(j=>['running','queued'].includes(j.status))||jobs.find(j=>j.id===S.data?.news?.latest_matching_job_id)||jobs[0];if(!latest&&!coverageRows().length)return;
-    const panel=el('section',`collection-status${compact?' compact':''}`);panel.setAttribute('aria-label','실시간 기사 수집 상태');
+    const panel=el('section',`collection-status${compact?' compact':''}`);panel.setAttribute('aria-label','실시간 기사 수집 상태');panel.append(button('수집 중단 원인·진단 저장','button small',collectionDiagnostic));
     if(latest){const matches=(S.data?.news?.matching_job_ids||[]).includes(latest.id);panel.append(el('small','muted',`${matches?'현재 기사 조건의 수집 작업':'다른 조건의 최근 수집 작업'} · 기간 ${text(latest.filters?.period)} · 검색 ${text(latest.filters?.q,'기본 주제')} · 범위 ${text(scopeLabels[latest.filters?.scope],latest.filters?.scope||'전체')}`));const status=({running:'수집 진행 중',queued:'수집 대기',completed:'조회 작업 종료',partial:'일부 조회 · 남은 범위 있음',failed:'수집 실패',paused:'일시 중지',interrupted:'중단됨'})[latest.status]||text(latest.status);const progress=latest.progress||{};add(panel,add(el('div','collection-head'),el('strong','',status),badge(`작업 ${text(latest.id)}`,'neutral')),el('p','',`최근 실행 ${dateTime(latest.updated_at||latest.finished_at||latest.started_at||latest.created_at)} KST · 신규 ${Number(latest.new_articles??latest.articles_added??latest.stats?.new_articles??0)}개 · 요청 ${Number(latest.requests_made??latest.request_count??progress.requests_completed??0)}회`));
       const completed=Number(latest.completed_windows??progress.completed_windows??latest.stats?.completed_windows??0),total=Number(latest.total_windows??progress.total_windows??0);if(total){const bar=el('progress');bar.max=total;bar.value=completed;bar.setAttribute('aria-label','조회 구간 진행률');add(panel,bar,el('small','',`${completed} / ${total} 조회 구간`));}
-      const pending=Array.isArray(latest.pending_windows)?latest.pending_windows.length:Number(latest.pending_count??progress.pending_windows??0);if(pending||latest.failed_windows?.length||latest.truncated||latest.limit_reached)panel.append(el('p','coverage-warning',`범위 미확보 · 남은 조회 구간 ${pending}개. 요청 상한·검색 제공자의 결과 제한이 적용됩니다.`));if(latest.stop_reason)panel.append(el('p','callout',({request_limit:'설정된 요청 상한에 도달했습니다. 남은 구간 수집을 재개할 수 있습니다.',article_limit:'이번 기사 저장 상한에 도달했습니다.',user_cancelled:'사용자가 수집을 중단했습니다.',source_errors:'출처 연결 오류가 있습니다. 네트워크 진단 후 실패 구간을 재개하세요.',queue_exhausted:'계획한 조회 구간을 마쳤습니다. 제공사의 검색 결과 제한으로 전체 기사 확보를 보장하지 않습니다.'})[latest.stop_reason]||latest.stop_reason));if(latest.error||latest.last_error)panel.append(el('p','coverage-warning',text(latest.error||latest.last_error)));
+      const pending=Array.isArray(latest.pending_windows)?latest.pending_windows.length:Number(latest.pending_count??progress.pending_windows??0);if(pending||latest.failed_windows?.length||latest.truncated||latest.limit_reached)panel.append(el('p','coverage-warning',`범위 미확보 · 남은 조회 구간 ${pending}개. 요청 상한·검색 제공자의 결과 제한이 적용됩니다.`));if(latest.stop_reason)panel.append(el('p','callout',({request_limit:'설정된 요청 상한에 도달했습니다. 남은 구간 수집을 재개할 수 있습니다.',article_limit:'이번 기사 저장 상한에 도달했습니다.',user_cancelled:'사용자가 수집을 중단했습니다.',source_errors:'출처 연결 오류가 있습니다. 네트워크 진단 후 실패 구간을 재개하세요.',worker_error:'수집 처리 오류입니다. 진단을 저장하고 원인을 확인한 후 재개하세요.',queue_exhausted:'계획한 조회 구간을 마쳤습니다. 제공사의 검색 결과 제한으로 전체 기사 확보를 보장하지 않습니다.'})[latest.stop_reason]||latest.stop_reason));if(latest.message)panel.append(el('p','coverage-warning',text(latest.message)));if(latest.error_code)panel.append(el('p','coverage-warning',`오류 코드: ${latest.error_code}`));if(latest.error||latest.last_error)panel.append(el('p','coverage-warning',text(latest.error||latest.last_error)));
       if(['running','queued'].includes(latest.status))panel.append(button('현재 수집 중단','button small',async()=>{try{await mutate('/api/news/cancel',{job_id:latest.id},'현재 요청 후 수집을 중단합니다. 남은 범위는 저장됩니다.');}catch{}}));if(!['running','queued'].includes(latest.status)&&(latest.can_resume||pending||['partial','paused','interrupted','failed','cancelled'].includes(latest.status)))panel.append(button('남은 범위 수집 계속','button small',()=>collectNews(latest.id)));
     }
     panel.append(el('small','muted','작업 종료는 해당 기간의 모든 기사가 확보되었다는 뜻이 아닙니다. 선정 출처·성공·실패·미연결·미확보 범위를 구분합니다.'));
@@ -845,16 +857,17 @@
     formShell('이 PC의 AI 연결',grid=>{
       add(grid,el('p','callout field full','OpenAI·Claude·Gemini API 키를 지원합니다. 형식으로 제공사를 추정하고 불명확하면 직접 선택합니다. 키 인증은 모델 목록 조회만 수행하며, 기사 분석은 별도 실행합니다.'));
       const wrap=el('label','field'),select=el('select');select.name='provider';
-      [['','키 형식으로 자동 추정'],['openai','OpenAI'],['anthropic','Anthropic · Claude'],['google','Google · Gemini']].forEach(([id,label])=>select.append(Object.assign(el('option','',label),{value:id})));add(wrap,el('span','','AI 제공사'),select);grid.append(wrap);
+      [['','키 형식으로 자동 추정'],['openai','OpenAI'],['anthropic','Anthropic · Claude'],['google','Google · Gemini'],['corporate','사내 AI · 별도 프로토콜 확인 필요']].forEach(([id,label])=>select.append(Object.assign(el('option','',label),{value:id})));add(wrap,el('span','','AI 제공사'),select);grid.append(wrap);
       const key=field(grid,'API 키 · Windows 보안 저장소에 보관','key','','password',true);key.autocomplete='new-password';key.spellcheck=false;
       const hint=el('p','muted field full','키를 여러 제공사에 차례로 전송하지 않습니다.');grid.append(hint);
       key.addEventListener('input',()=>{const k=key.value,guess=k.startsWith('sk-ant-')?'anthropic':k.startsWith('sk-proj-')||k.startsWith('sk-svcacct-')?'openai':k.startsWith('AIza')?'google':'';hint.textContent=guess?`제공사 추정: ${guess} · 인증 전입니다.`:'제공사를 구분하지 못하면 위에서 하나 선택하세요.';});
-      field(grid,'환경변수 참조 · 키 직접 입력 대신 선택 사용','secret_ref','','text',true,'예: env:ATLAS_AI_OPENAI_KEY. 기존 키를 재확인할 때는 제공사를 선택하고 키를 비워 두세요.');
+      const secretRef=field(grid,'환경변수 참조 · 키 직접 입력 대신 선택 사용','secret_ref','','text',true,'예: env:ATLAS_AI_OPENAI_KEY. 기존 키를 재확인할 때는 제공사를 선택하고 키를 비워 두세요.');
+      select.addEventListener('change',()=>{const internal=select.value==='corporate';key.disabled=internal;secretRef.disabled=internal;if(internal){key.value='';secretRef.value='';hint.textContent='사내 AI는 인증 헤더·요청/응답 형식 확인 후 전용 연결이 필요합니다. 지금은 키를 입력·저장·전송하지 않습니다.';}});
       add(grid,el('p','metadata-label field full',profile.provider?`현재 설정: ${profile.provider_label} · ${profile.model||'모델 선택 필요'}`:'키는 JSON·GitHub·백업에 포함하지 않습니다.'));
     },async (form,progress)=>{
       const payload=Object.fromEntries(form.entries()),keyInput=$('#modalContent input[name="key"]');
-      try{const response=await api('/api/ai/connect',payload),r=response.data||response;
-        if(['failed','provider_required'].includes(r.status))throw Error(r.message||'AI 연결을 확인하지 못했습니다.');
+      try{if(payload.provider==='corporate')throw Error('사내 API의 인증 헤더와 요청·응답 JSON을 확인한 후 연결을 적용합니다. 키는 전송하지 않았습니다.');const response=await api('/api/ai/connect',payload),r=response.data||response;
+        if(['failed','provider_required','protocol_required'].includes(r.status))throw Error(r.message||'AI 연결을 확인하지 못했습니다.');
         if(keyInput)keyInput.value='';progress?.confirmed();await load();toast(r.message||'AI 연결 설정을 저장했습니다.');
         if(r.status==='model_required')setTimeout(aiModelForm,0);
       }finally{payload.key='';}

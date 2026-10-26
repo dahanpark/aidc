@@ -237,7 +237,7 @@ class AtlasApplication:
             if not isinstance(resume_id, str) or resume_id not in ds.get('news_jobs', {}):
                 raise ValueError('재개할 수집 작업을 찾을 수 없습니다.')
             prior = ds['news_jobs'][resume_id]
-            if prior.get('status') in ('running','queued'):
+            if prior.get('status') in ('running','queued') and self.news_thread and self.news_thread.is_alive():
                 return {'job_id': resume_id, 'status': 'running'}
             request = dict(prior.get('request') or prior.get('filters') or {})
             if not request:
@@ -298,9 +298,13 @@ class AtlasApplication:
                         job['status'] = result.get('status','partial')
                     job['updated_at'] = now()
                 self.repo.transact(finish)
-            except Exception:
+            except Exception as error:
+                from .collection_diagnostics import worker_failure
+                detail = worker_failure(error)
                 def failed(target):
-                    target['news_jobs'][job_id].update(status='failed',updated_at=now(),message='외부 기사 수집을 마치지 못했습니다. 진행 상태를 보존했으며 재개할 수 있습니다.')
+                    target['news_jobs'][job_id].update(status='failed',updated_at=now(),
+                        stop_reason='worker_error', error_code=detail['code'],
+                        message=detail['message'], can_resume=True)
                 self.repo.transact(failed)
             finally:
                 self.collection_lock.release()
@@ -657,6 +661,11 @@ def make_server(app, port=8765):
                     self._json({'app':'aidc-atlas', 'version':__version__, 'identity':app.identity, 'csrf_token':app.csrf})
                 elif path == '/api/ai/status':
                     self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
+                elif path == '/api/collection/status':
+                    from .collection_diagnostics import workspace
+                    self._json({'data':workspace(app.view_snapshot()['datasets'],
+                        worker_alive=bool(app.news_thread and app.news_thread.is_alive()),
+                        lock_held=app.collection_lock.locked())})
                 elif path == '/api/project-identities':
                     snap = app.view_snapshot()
                     query = parse_qs(parsed.query)
