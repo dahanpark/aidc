@@ -1,13 +1,38 @@
 import copy
+import json
+import subprocess
+from pathlib import Path
 import unittest
 from backend import strategy
 
 
 class StrategyEditingTests(unittest.TestCase):
+    def test_browser_default_axes_match_backend_and_old_partial_sheet_is_read_only_restored(self):
+        root=Path(__file__).resolve().parents[1]
+        node=Path.home()/'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe'
+        if node.is_file():
+            raw=subprocess.check_output([str(node),'-e',"process.stdout.write(JSON.stringify(require('./frontend/atlas_strategy.js').defaultBoard()))"],cwd=root)
+            self.assertEqual(json.loads(raw),strategy.default_board())
+        b=strategy.default_board();b['companies']=b['companies'][:1];b['rows']=b['rows'][:1]
+        b['companies'][0]['name']='포스코E&C 사용자 표기';ds={'strategy_boards':{'construction':b}};before=copy.deepcopy(ds)
+        restored=strategy.boards(ds)[0]
+        self.assertEqual(len(restored['companies']),7);self.assertEqual(len(restored['rows']),11)
+        self.assertEqual(restored['companies'][0]['name'],'포스코E&C 사용자 표기');self.assertEqual(before,ds)
     def setUp(self):
         self.ds={'articles':{'a':{'id':'a','mode':'live_metadata','title':'삼성물산 데이터센터 계획 검토',
                    'url':'https://example.test/a','published_at':'2026-10-27','publisher':'공개 출처'}}}
         self.payload={'company_id':'samsung-cnt','row_ids':['strategy'],'article_ids':['a']}
+
+    def test_restored_presets_do_not_make_full_legacy_sheet_unsaveable(self):
+        b=strategy.default_board()
+        b['companies']=[{'id':f'custom-company-{i}','name':f'사용자 회사 {i}','aliases':[]} for i in range(40)]
+        b['rows']=[{'id':f'custom-row-{i}','label':f'사용자 항목 {i}'} for i in range(30)]
+        self.ds['strategy_boards']={'construction':b}
+        restored=strategy.boards(self.ds)[0]
+        self.assertEqual((len(restored['companies']),len(restored['rows'])),(47,41))
+        saved=strategy.save_board(self.ds,restored)
+        self.assertEqual(len(saved['companies']),47)
+        self.assertEqual(len(saved['rows']),41)
 
     def store(self):
         p=strategy.prepare_analysis(self.ds,self.payload)

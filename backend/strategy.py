@@ -83,6 +83,14 @@ def boards(ds):
     values=list(saved.values()) if isinstance(saved,dict) else list(saved)
     result={b['id']:deepcopy(b) for b in values}
     result.setdefault('construction',default_board())
+    # Older saved construction sheets may contain only a few custom axes.
+    # Restore absent presets in the read view without deleting edits or writing.
+    preset=default_board()
+    for field,label in (('companies','name'),('rows','label')):
+        existing=result['construction'][field]
+        ids={item['id'] for item in existing}
+        names={item[label].strip().casefold() for item in existing}
+        existing.extend(item for item in preset[field] if item['id'] not in ids and item[label].strip().casefold() not in names)
     result['construction'].setdefault('analysis_brief',DEFAULT_BRIEF)
     for row in result['construction']['rows']:
         row.setdefault('analysis_guidance',DEFAULT_GUIDANCE.get(row['id'],''))
@@ -95,6 +103,9 @@ def save_board(ds,payload):
     bid=_id(payload.get('id')); title=_text(payload.get('title'))
     clean={'id':bid,'title':title,'analysis_brief':_optional_text(payload.get('analysis_brief',DEFAULT_BRIEF if bid=='construction' else ''),1000)}
     for field,label,max_count in [('companies','name',40),('rows','label',30)]:
+        # Leave room for restored presets alongside a full legacy custom sheet.
+        if bid=='construction':
+            max_count+=len(default_board()[field])
         items=payload.get(field)
         if not isinstance(items,list) or not 1<=len(items)<=max_count:
             raise ValueError('전략표 회사/행 배열 한도를 확인하세요.')

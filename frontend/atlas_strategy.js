@@ -2,11 +2,14 @@
   'use strict';
   const list = value => Array.isArray(value) ? value : [];
   const str = value => value == null ? '' : String(value);
+  const DEFAULT_BOARD = {"id":"construction","title":"국내 DC.AIDC 전략 (건설사)","analysis_brief":"회사별 DC·AIDC 사업 전략을 공개 기사 근거로 종합한다. 기사 건수가 아닌 내용 중심으로 셀당 최대 3개 말머리 단락을 작성한다. 계획/실제·준공/수주/추진·예상/확정을 구분하고 출처·날짜·정확한 인용을 연결한다. 근거가 없으면 자료 부족으로 남기며 수치나 참여를 추정하지 않는다.","companies":[{"id":"posco-enc","name":"포스코E&C","aliases":["포스코이앤씨","포스코건설"]},{"id":"dl-enc","name":"DL E&C","aliases":["DL이앤씨","디엘이앤씨"]},{"id":"hyundai-engineering","name":"현대엔지니어링","aliases":[]},{"id":"sk-ecoplant","name":"SK에코플랜트","aliases":[]},{"id":"ipark-hdc","name":"IPARK현대산업개발","aliases":["HDC현대산업개발","현대산업개발"]},{"id":"hanwha-construction","name":"한화 건설부문","aliases":["한화건설","한화 건설부문","㈜한화 건설부문"]},{"id":"samsung-cnt","name":"삼성물산","aliases":[]}],"rows":[{"id":"organization","label":"조직형태/현황","analysis_guidance":"DC·AIDC 담당 조직, 인력·전담부서 및 사업 추진 체계를 정리한다."},{"id":"strategy","label":"핵심전략","analysis_guidance":"데이터센터 시장 진출·확대 전략과 협력 방향을 정리한다."},{"id":"strengths","label":"강점(차별화)","analysis_guidance":"기사에 명시된 경쟁력과 차별화 근거를 정리한다."},{"id":"technology","label":"기술·인증·공법 키워드","analysis_guidance":"기술·인증·공법·R&D·냉각·전력 관련 키워드와 적용 상태를 구분한다."},{"id":"completed","label":"건립실적(준공)","analysis_guidance":"준공한 데이터센터 실적만 정리하고 수주·계획 실적과 구분한다."},{"id":"pipeline","label":"수주/시공/추진(파이프라인)","analysis_guidance":"수주·시공 중·추진 중인 사업을 단계와 시점별로 구분한다."},{"id":"future","label":"향후계획(시장/파이프라인)","analysis_guidance":"향후 시장·파이프라인 계획을 정리하되 예상 참여와 확정을 구분한다."},{"id":"notes","label":"비고","analysis_guidance":"주요 변동, 확인 필요 사항과 기사 간 상충 내용을 정리한다."},{"id":"dc-history","label":"주요 DC·AIDC 시공이력","analysis_guidance":"주요 DC·AIDC 시공 사업명, 위치, 참여 역할과 근거 시점을 정리한다."},{"id":"target-sites","label":"검토 중인 대상지","analysis_guidance":"검토 중이라고 명시된 대상지와 추진 단계를 정리한다."},{"id":"pc-subsidiary","label":"PC 자회사 여부","analysis_guidance":"PC(프리캐스트 콘크리트) 자회사 보유 여부를 명시 근거로 확인하며 계열 관계를 추정하지 않는다."}]};
   let sequence = 0;
   const stableId = prefix => prefix + '-' + (global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : Date.now().toString(36) + '-' + (++sequence).toString(36));
   function mount(root, opts = {}) {
     const doc = root.ownerDocument || global.document;
-    let workspace = opts.workspace || {}, board = workspace.active_board || list(workspace.boards)[0];
+    let workspace = opts.workspace || {}, board = workspace.active_board || list(workspace.boards)[0] || defaultBoard();
+    if (!list(workspace.boards).length) workspace = {...workspace, boards:[board], active_board:board};
+    let backendReady = opts.backendReady !== false;
     let selectedCompany = board && list(board.companies)[0] && board.companies[0].id;
     let selectedRows = [], selectedArticles = [], prepared = null, consent = false, busy = false, error = '', notice = '';
     let formKind = '', draft = '', aliases = '', guidance = '', editingId = '', from = '', to = '';
@@ -26,7 +29,8 @@
     function accept(next) {
       if (!next) return;
       workspace = next.workspace || next;
-      board = workspace.active_board || list(workspace.boards).find(b => b.id === board?.id) || list(workspace.boards)[0];
+      board = workspace.active_board || list(workspace.boards).find(b => b.id === board?.id) || list(workspace.boards)[0] || board || defaultBoard();
+      backendReady = true;
       if (!list(board?.companies).some(c => c.id === selectedCompany)) selectedCompany = list(board?.companies)[0]?.id;
       selectedRows = selectedRows.filter(id => list(board?.rows).some(r => r.id === id));
     }
@@ -34,7 +38,7 @@
       if (busy) return;
       busy = true; error = ''; render();
       try { const result = await action(); if (success) success(result); }
-      catch (err) { error = str(err.message || err); }
+      catch (err) { error = str(err.message || err); if (/지원하지 않는 작업|API 경로가 없습니다|404/.test(error)) {backendReady=false;error='현재 실행 서버가 전략표 저장 API를 지원하지 않습니다. 기존 store를 유지하고 앱을 정상 종료한 뒤 최신 AIDC ATLAS.cmd로 다시 실행하세요. 입력은 이 화면에 유지됩니다.';} }
       finally { busy = false; render(); }
     }
     function bounded(values, id, checked, limit) {
@@ -62,10 +66,10 @@
       const scroll = el('div', undefined, 'strategy-table-scroll'); attr(scroll, 'tabindex', '0'); attr(scroll, 'aria-label', '전략표 가로 스크롤');
       const grid = el('table', undefined, 'strategy-table'), caption = el('caption', board.title || '전략표');
       grid.append(caption); const head = el('thead'), tr = el('tr'); tr.append(attr(el('th', '구분'), 'scope', 'col'));
-      list(board.companies).forEach(c => {const th=attr(el('th',c.name),'scope','col');th.append(button('회사 편집',()=>startEdit('company',c),busy||!opts.saveBoard));tr.append(th);}); head.append(tr); grid.append(head);
+      list(board.companies).forEach(c => {const th=attr(el('th',c.name),'scope','col');th.append(button('회사 편집',()=>startEdit('company',c),busy||!opts.saveBoard||!backendReady));tr.append(th);}); head.append(tr); grid.append(head);
       const body = el('tbody');
       list(board.rows).forEach(row => {
-        const line = el('tr'),heading=attr(el('th', row.label), 'scope', 'row');if(row.analysis_guidance)heading.append(el('small',row.analysis_guidance,'strategy-meta'));heading.append(button('항목·AI 기준 편집',()=>startEdit('row',row),busy||!opts.saveBoard));line.append(heading);
+        const line = el('tr'),heading=attr(el('th', row.label), 'scope', 'row');if(row.analysis_guidance)heading.append(el('small',row.analysis_guidance,'strategy-meta'));heading.append(button('항목·AI 기준 편집',()=>startEdit('row',row),busy||!opts.saveBoard||!backendReady));line.append(heading);
         list(board.companies).forEach(company => {
           const cell = el('td'), summary = summaryFor(company.id, row.id), paragraphs = list(summary?.paragraphs).slice(0, 3);
           if (!paragraphs.length) cell.append(el('span', summary ? '자료 부족 / 확인 필요' : '자료 부족 / AI 미실행', 'strategy-empty'));
@@ -85,7 +89,7 @@
       if (!formKind) return;
       const form = el('form', undefined, 'strategy-add-form');
       const editing=formKind.startsWith('edit-'),kind=formKind.replace('edit-','');
-      const label = {company: '회사명', row: '행 이름', category: '카테고리 이름'}[kind];
+      const label = {company: '회사명', row: '행 이름', category: '분류표 이름'}[kind];
       const name = input(draft, v => { draft = v; }); attr(name, 'aria-label', label); name.required = true; name.maxLength = 100;
       form.append(field(label, name));
       if (kind === 'company') form.append(field('별칭 (쉼표로 구분)', attr(input(aliases, v => { aliases = v; }),'aria-label','회사 별칭')));
@@ -93,10 +97,10 @@
       if(kind==='row'||kind==='category')form.append(el('p','공개 기사 분석 기준만 입력하세요. 기준은 전송 미리보기에 포함됩니다. 사내 메모·비밀정보는 입력하지 마세요.'));
       if (kind === 'category'&&!editing) form.append(el('p', '새 카테고리는 현재 회사·행 구성을 복사하여 시작합니다. 이후 회사·행을 추가할 수 있습니다.'));
       if(editing)form.append(el('p','이름·별칭·분석 기준을 변경해도 기존 셀과 기사 연결은 보존합니다. 기준 변경 시 기존 요약은 재점검 표시됩니다.'));
-      const save = el('button', editing?'변경 저장':'추가 저장'); save.type = 'submit'; save.disabled = busy || !opts.saveBoard;
+      const save = el('button', editing?'변경 저장':'추가 저장'); save.type = 'submit'; save.disabled = busy || !opts.saveBoard || !backendReady;
       form.append(save, button('취소', () => {formKind = ''; draft = ''; aliases = ''; render();}, busy));
       form.addEventListener('submit', event => {
-        event.preventDefault(); if (!draft.trim() || busy) return;
+        event.preventDefault(); if (!draft.trim() || busy || !backendReady) return;
         let payload;
         if (kind === 'category'&&!editing) payload = {id: stableId('board'), title: draft.trim(), analysis_brief:guidance||board?.analysis_brief||'', companies: list(board?.companies).map(c => ({...c, aliases: list(c.aliases).slice()})), rows: list(board?.rows).map(r => ({...r}))};
         else { payload = {...board, companies: list(board.companies).map(c => ({...c})), rows: list(board.rows).map(r => ({...r}))};
@@ -144,6 +148,8 @@
       attr(root, 'aria-busy', busy ? 'true' : 'false');
       root.append(el('h3', 'Con. Status — '+(board?.title||'국내 DC.AIDC 전략 (건설사)')));
       root.append(el('p', '기사 근거 기반 전략표 · PC = Precast Concrete · 계획/실제와 수주/준공은 출처 문맥을 확인하세요.', 'strategy-meta'));
+      root.append(el('p','가로는 회사(열), 세로는 분석 항목(행)입니다. 건설사·발주처처럼 표를 따로 만들 때만 분류표를 추가하세요. 기본 7개 건설사·11개 분석 항목이 준비되어 있습니다.','strategy-meta'));
+      if(!backendReady){const note=el('div',undefined,'strategy-error');note.append(el('p','기본 표를 표시하고 있습니다. 현재 실행 서버에는 전략표 저장 기능이 적용되지 않았습니다. 기존 store를 보존하며 정상 종료 후 최신 AIDC ATLAS.cmd로 재실행하세요.'),button('서버 적용 상태 다시 확인',()=>run(()=>opts.loadBoard('construction'),value=>{accept(value);notice='서버의 저장 표를 불러왔습니다.';}),busy||!opts.loadBoard));root.append(note);}
       if(board?.analysis_brief)root.append(el('p',board.analysis_brief,'strategy-meta'));
       const tabs = el('div', undefined, 'strategy-tabs'); attr(tabs, 'role', 'tablist'); attr(tabs, 'aria-label', '전략 카테고리');
       list(workspace.boards).forEach(b => {const tab = button(b.title, () => {
@@ -153,8 +159,8 @@
       if (error) root.append(attr(el('p', error, 'strategy-error'), 'role', 'alert'));
       const status = el('p', busy ? '처리 중…' : notice, 'strategy-status'); attr(status, 'role', 'status'); attr(status, 'aria-live', 'polite'); root.append(status);
       const toolbar = el('div', undefined, 'strategy-toolbar');
-      ['category', 'company', 'row'].forEach(kind => toolbar.append(button({category:'카테고리 추가',company:'회사 추가',row:'행 추가'}[kind], () => {formKind = kind; draft = ''; aliases = '';guidance=kind==='category'?(board?.analysis_brief||''):'';editingId=''; render();}, busy || !opts.saveBoard || (!board && kind !== 'category'))));
-      toolbar.append(button('카테고리·AI 기준 편집',()=>startEdit('category',board),busy||!board||!opts.saveBoard));
+      ['company', 'row', 'category'].forEach(kind => toolbar.append(button({category:'분류표 추가',company:'열(회사) 추가',row:'행(분석 항목) 추가'}[kind], () => {formKind = kind; draft = ''; aliases = '';guidance=kind==='category'?(board?.analysis_brief||''):'';editingId=''; render();}, busy || !opts.saveBoard || !backendReady)));
+      toolbar.append(button('표 이름·공통 AI 지시문 편집',()=>startEdit('category',board),busy||!board||!opts.saveBoard||!backendReady));
       toolbar.append(button('A3 가로 출력 HTML', () => run(() => opts.exportBoard(board.id), () => {notice = 'A3 가로 출력 HTML을 요청했습니다.';}), busy || !board || !opts.exportBoard)); root.append(toolbar); addForm(root);
       if (!board) {root.append(el('p', '자료 부족 · 전략 카테고리를 추가하세요.')); return;}
       root.append(table()); controls(root);
@@ -162,6 +168,7 @@
     render();
     return {update(next) {accept(next); invalidate(); render();}, destroy() {root.replaceChildren();}, getSelection: selection};
   }
-  global.AtlasStrategy = {mount};
+  function defaultBoard(){return JSON.parse(JSON.stringify(DEFAULT_BOARD));}
+  global.AtlasStrategy = {mount,defaultBoard};
   if (typeof module !== 'undefined' && module.exports) module.exports = global.AtlasStrategy;
 })(typeof window !== 'undefined' ? window : globalThis);

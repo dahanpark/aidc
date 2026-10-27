@@ -58,6 +58,7 @@ class FeedWorkerTests(unittest.TestCase):
         self.assertEqual(json.loads(output),{'ok':False,'code':'timeout'})
 
     def test_blocked_network_pauses_after_three_and_can_accumulate_after_resume(self):
+        (ROOT/'runtime').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT/'runtime') as temp:
             repo=JsonRepository(Path(temp)/'store')
             request={'period':'1y','source_ids':['INT-M02'],'max_requests':8}

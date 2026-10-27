@@ -713,8 +713,12 @@ def make_server(app, port=8765):
                     query = parse_qs(parsed.query, keep_blank_values=True)
                     pids = [x for x in query["project_ids"][0].split(",") if x] if "project_ids" in query else None
                     aids = [x for x in query.get("article_ids", [""])[0].split(",") if x] or None
-                    charter = loads((app.root / "config" / "product_charter.json").read_text(encoding="utf-8"))
                     kind = query.get('kind',['report'])[0]
+                    # Public downloads deliberately exclude private product definitions.
+                    # Only their explicit export may depend on that local file.
+                    charter = None
+                    if kind == 'charter':
+                        charter = loads((app.root / "config" / "product_charter.json").read_text(encoding="utf-8"))
                     if kind in ('news-report','news-csv'):
                         from .news_reports import export_workspace
                         snap = app.repo.snapshot()

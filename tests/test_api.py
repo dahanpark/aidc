@@ -144,6 +144,9 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.request('/api/internal-links', {'company_id': company, 'project_ids': [], 'title': 'PRIVATE-TITLE', 'url': 'https://intranet.example/document/1', 'user_note': 'PRIVATE-COMPANY-SECRET'})[0], 200)
         for kind in ('report', 'newsletter', 'csv', 'charter'):
             status, raw, headers = self.request('/api/export?kind=' + kind)
+            if kind == 'charter' and not (self.root / 'config/product_charter.json').exists():
+                self.assertEqual(status, 404)
+                continue
             self.assertEqual(status, 200)
             self.assertNotIn(b'PRIVATE-', raw)
             self.assertNotIn(b'intranet.example', raw)

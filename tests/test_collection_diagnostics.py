@@ -75,6 +75,7 @@ class CollectionDiagnosticsTests(unittest.TestCase):
 
 class CollectionDiagnosticsHttpTests(unittest.TestCase):
     def test_diagnostic_endpoint_is_read_only_and_does_not_build_graphs(self):
+        (ROOT/'runtime').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT/'runtime') as temp:
             root=Path(temp)
             for folder in ('fixtures','config'):shutil.copytree(ROOT/folder,root/folder)

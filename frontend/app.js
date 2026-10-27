@@ -821,7 +821,7 @@
     if(!window.AtlasStrategy)return;
     const host=el('section','panel');root.append(host);
     const getBoard=async id=>{const r=await api('/api/strategy?'+newsParams()+'&board_id='+encodeURIComponent(id),undefined,'GET');return r.data||r;};
-    window.AtlasStrategy.mount(host,{workspace:S.data.strategy,articles:nitems('articles'),connection:S.data?.ai?.connection||{},
+    window.AtlasStrategy.mount(host,{workspace:S.data.strategy,backendReady:Boolean(S.data.strategy?.active_board),articles:nitems('articles'),connection:S.data?.ai?.connection||{},
       loadBoard:getBoard,
       saveBoard:async payload=>{await api('/api/strategy/save',payload);return getBoard(payload.id);},
       preview:async payload=>{const r=await api('/api/strategy/preview',payload);return r.data||r;},
