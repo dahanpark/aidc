@@ -35,6 +35,7 @@ def workspace(ds, *, worker_alive=False, lock_held=False,progress=None):
         job['pending_windows']=len(j.get('pending_windows',[]))
         job['failed_windows']=len(j.get('failed_windows',[]))
         job['error_code']=j.get('error_code') if j.get('error_code') in ERROR_CODES else None
+        job['error_transport']=j.get('error_transport') if j.get('error_transport') in ('python_verified','windows_system','windows_unavailable') else None
         orphan=j.get('status') in ('running','queued') and not worker_alive and not lock_held
         job['worker_missing']=orphan
         if orphan: result='worker_missing'

@@ -22,6 +22,15 @@ class WindowsFeedTests(unittest.TestCase):
             self.assertEqual(feed_worker.fetch(URL),b'<rss/>')
         native.assert_called_once_with(URL,18)
 
+    def test_failed_windows_retry_is_distinguished_from_old_python_only_failure(self):
+        from backend.network import error_info
+        failed=Mock(returncode=0,stdout=b'{"ok":false,"code":"tls_certificate"}')
+        with patch('backend.feed_worker.subprocess.run',return_value=failed),patch('backend.windows_feed.fetch',side_effect=NetworkError('tls_certificate','Windows certificate check failed')):
+            with self.assertRaises(NetworkError) as result:feed_worker.fetch(URL)
+        self.assertEqual(error_info(result.exception)['transport'],'windows_system')
+        private=NetworkError('tls_certificate','fixed',transport='PRIVATE proxy details')
+        self.assertNotIn('transport',error_info(private))
+
     def test_no_new_attempt_after_total_deadline(self):
         failed=Mock(returncode=0,stdout=b'{"ok":false,"code":"tls_certificate"}')
         with patch('backend.feed_worker.subprocess.run',return_value=failed),patch('backend.feed_worker.time.monotonic',side_effect=[10,31]),patch('backend.windows_feed.fetch') as native:

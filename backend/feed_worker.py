@@ -35,8 +35,12 @@ def fetch(url,timeout=DEADLINE_SECONDS):
                 from .windows_feed import fetch as windows_fetch
                 remaining=timeout-(time.monotonic()-started)
                 if remaining<=0:raise NetworkError('feed_deadline','RSS 요청 전체 시간 제한에 도달했습니다.')
-                return windows_fetch(url,remaining)
-            raise NetworkError(code if code in CODES else 'feed_worker','RSS 연결을 확인하지 못했습니다. 오류 코드와 네트워크 진단을 확인하세요.')
+                try:
+                    return windows_fetch(url,remaining)
+                except NetworkError as error:
+                    if not error.transport:error.transport='windows_system'
+                    raise
+            raise NetworkError(code if code in CODES else 'feed_worker','RSS 연결을 확인하지 못했습니다. 오류 코드와 네트워크 진단을 확인하세요.',transport='python_verified')
         raw=base64.b64decode(response['body'],validate=True)
         if len(raw)>MAX_BYTES:raise ValueError('limit')
         return raw

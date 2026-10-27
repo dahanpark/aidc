@@ -1,5 +1,13 @@
 (function(global){
   'use strict';
+  function failureMessage(job={}){
+    if(job.error_code==='tls_certificate'){
+      if(job.error_transport==='windows_system')return 'Windows 기본 인증서 검증도 실패했습니다. PC 날짜·시간과 회사 인증서 신뢰 구성을 확인하세요. 브라우저 RSS 연결과 프로그램 연결 결과는 다를 수 있습니다.';
+      if(job.error_transport==='windows_unavailable')return 'Windows 인증서 재시도 경로를 실행할 수 없습니다. 최신 실행본과 회사 PowerShell 실행 정책을 확인하세요.';
+      return 'HTTPS 인증서 검증 실패로 중지했습니다. 최신 실행본의 사내망 수집 연결 진단에서 Windows 경로 사용 여부를 확인하세요.';
+    }
+    return '연속 연결 오류로 일시 중지했습니다. 네트워크 진단 후 남은 구간을 재개하세요.';
+  }
   function controlState(busy,jobs=[],live){
     if(busy)return {disabled:true,label:'수집 시작 확인 중…'};
     if(live?.tracked){
@@ -28,7 +36,7 @@
         phase=j&&['running','queued'].includes(j.status)&&d.worker_alive?'running':'checking';notify();
         root.hidden=false;root.textContent=`${labels[stage]||'수집 준비·저장소 확인 중'}${p.source_name?' · '+p.source_name:''} · 신규 ${j?.new_articles??p.new_articles??0}건 · 요청 ${j?.request_count??p.request_count??0}회 · RSS 요청 전체 제한 ${p.request_deadline_seconds||20}초`;
         if(j&&(!d.worker_alive&&!d.collection_lock_held||!['running','queued'].includes(j.status))){
-          const message=j.stop_reason==='network_blocked'?'연속 연결 오류로 일시 중지했습니다. 네트워크 진단 후 남은 구간을 재개하세요.':j.worker_missing?'진행 상태만 남았고 실제 작업이 없습니다. 수집 진단에서 원래 조건으로 재개하세요.':labels[j.status]||j.status;
+          const message=j.stop_reason==='network_blocked'?failureMessage(j):j.worker_missing?'진행 상태만 남았고 실제 작업이 없습니다. 수집 진단에서 원래 조건으로 재개하세요.':labels[j.status]||j.status;
           root.textContent=`${message} · 신규 ${j.new_articles||0}건 · 오류 ${j.error_code||'없음'}`;
           active=false;phase='finished';notify();opts.onFinish?.(d);return;
         }
@@ -38,5 +46,5 @@
     root.setAttribute('role','status');root.setAttribute('aria-live','polite');root.hidden=true;
     return {start(id=null){stop();target=id;tracked=true;active=true;phase='checking';notify();refresh();},setJob(id){target=id;},stop,refresh,isActive:()=>active,getState};
   }
-  global.AtlasCollectionLive={mount,controlState};if(typeof module!=='undefined'&&module.exports)module.exports=global.AtlasCollectionLive;
+  global.AtlasCollectionLive={mount,controlState,failureMessage};if(typeof module!=='undefined'&&module.exports)module.exports=global.AtlasCollectionLive;
 })(typeof window!=='undefined'?window:globalThis);

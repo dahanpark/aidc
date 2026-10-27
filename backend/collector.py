@@ -374,6 +374,11 @@ def collect_news(repo, root, request, job_id=None, fetcher=None, progress=None):
             pending.pop(0)
             job['failed_windows'].append({**window,'error':type(error).__name__,'error_code':detail['code']})
             coverage.update(status='failed',error=type(error).__name__,error_code=detail['code'],error_message=detail['message'],accepted=0)
+            if detail.get('transport'):
+                coverage['error_transport']=detail['transport']
+                job['error_transport']=detail['transport']
+            else:
+                job.pop('error_transport',None)
             save(coverage=coverage)
             consecutive_errors+=1
             job['error_code']=detail['code']

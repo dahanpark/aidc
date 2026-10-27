@@ -8,23 +8,23 @@ from backend import strategy
 class StrategyTests(unittest.TestCase):
     def setUp(self):
         self.ds={'articles':{
-            'a':{'id':'a','mode':'live_metadata','title':'삼성물산 데이터센터 계획 검토',
-                 'feed_excerpt':'삼성물산은 데이터센터 사업을 검토 중이라고 밝혔다.',
+            'a':{'id':'a','mode':'live_metadata','title':'한화 건설부문 데이터센터 계획 검토',
+                 'feed_excerpt':'한화 건설부문은 데이터센터 사업을 검토 중이라고 밝혔다.',
                  'publisher':'공개 출처','published_at':'2026-10-26','url':'https://example.test/a',
                  'body':'SECRET_BODY','internal_note':'SECRET_NOTE','internal_links':['https://intranet.test']},
             'b':{'id':'b','mode':'live_metadata','title':'삼성 데이터센터 산업 기사','description':'삼성 그룹 정보'},
-            'c':{'id':'c','mode':'live_metadata','visibility':'private','title':'삼성물산 비공개'},
-            'd':{'id':'d','mode':'manual','title':'삼성물산 수동 비공개'},
+            'c':{'id':'c','mode':'live_metadata','visibility':'private','title':'한화 건설부문 비공개'},
+            'd':{'id':'d','mode':'manual','title':'한화 건설부문 수동 비공개'},
             'e':{'id':'e','mode':'live_metadata','title':'DL이앤씨 공개 검토 기사'},
         },'projects':{'original':{'name':'원본 보존'}}}
-        self.payload={'company_id':'samsung-cnt','row_ids':['strategy'],'article_ids':['a']}
+        self.payload={'company_id':'hanwha-construction','row_ids':['strategy'],'article_ids':['a']}
 
     def prepared(self):
         return strategy.prepare_analysis(self.ds,self.payload)
 
     def result(self):
         return {'cells':[{'row_id':'strategy','paragraphs':[{'text':'계획 검토 후보다.',
-               'quote':'삼성물산 데이터센터 계획 검토','article_id':'a'}]}]}
+               'quote':'한화 건설부문 데이터센터 계획 검토','article_id':'a'}]}]}
 
     def store(self):
         return strategy.validate_and_store(self.ds,self.prepared(),self.result(),
@@ -33,14 +33,14 @@ class StrategyTests(unittest.TestCase):
     def test_defaults_and_read_purity(self):
         before=copy.deepcopy(self.ds); board=strategy.default_board(); ws=strategy.workspace(self.ds)
         self.assertEqual(board['id'],'construction');self.assertEqual(board['title'],'국내 DC.AIDC 전략 (건설사)')
-        self.assertEqual(len(board['companies']),7);self.assertEqual(len(board['rows']),11)
-        self.assertEqual(ws['company_articles']['samsung-cnt'],['a'])
+        self.assertEqual(len(board['companies']),6);self.assertEqual(len(board['rows']),9)
+        self.assertEqual(ws['company_articles']['hanwha-construction'],['a'])
         self.assertEqual(ws['company_articles']['dl-enc'],['e'])
-        self.assertEqual(before,self.ds);board['rows'].clear();self.assertEqual(len(strategy.default_board()['rows']),11)
+        self.assertEqual(before,self.ds);board['rows'].clear();self.assertEqual(len(strategy.default_board()['rows']),9)
 
     def test_upsert_add_only_and_custom_board(self):
         board=strategy.default_board();board['companies'].append({'id':'new','name':'새회사','aliases':[]})
-        saved=strategy.save_board(self.ds,board);self.assertEqual(len(saved['companies']),8)
+        saved=strategy.save_board(self.ds,board);self.assertEqual(len(saved['companies']),7)
         board['companies'].pop()
         with self.assertRaises(ValueError):strategy.save_board(self.ds,board)
         other={'id':'owners','title':'발주처','companies':[{'id':'owner','name':'공개발주처'}],'rows':[{'id':'plans','label':'계획'}]}
@@ -72,16 +72,16 @@ class StrategyTests(unittest.TestCase):
             with self.assertRaises(ValueError):strategy.prepare_analysis(self.ds,{**self.payload,**update})
 
     def test_article_default_three_and_configured_limits(self):
-        for i in range(6):self.ds['articles']['s'+str(i)]={'id':'s'+str(i),'mode':'live_metadata','title':'삼성물산 공개 기사 '+str(i)}
+        for i in range(6):self.ds['articles']['s'+str(i)]={'id':'s'+str(i),'mode':'live_metadata','title':'한화 건설부문 공개 기사 '+str(i)}
         payload={k:v for k,v in self.payload.items() if k!='article_ids'}
         self.assertEqual(len(strategy.prepare_analysis(self.ds,payload)['articles']),3)
         with self.assertRaises(ValueError):strategy.prepare_analysis(self.ds,{**payload,'article_ids':['a','s0']},{'max_articles_per_run':1})
         with self.assertRaises(ValueError):strategy.prepare_analysis(self.ds,self.payload,{'max_articles_per_run':21})
-        self.ds['articles']['a']['feed_excerpt']='삼성물산 '+('문자'*1000)
+        self.ds['articles']['a']['feed_excerpt']='한화 건설부문 '+('문자'*1000)
         with self.assertRaises(ValueError):strategy.prepare_analysis(self.ds,self.payload,{'max_input_chars':500})
 
     def test_hash_ignores_selection_order_and_changes_with_public_input(self):
-        self.ds['articles']['z']={'id':'z','mode':'live_metadata','title':'삼성물산 두 번째 공개 기사'}
+        self.ds['articles']['z']={'id':'z','mode':'live_metadata','title':'한화 건설부문 두 번째 공개 기사'}
         payload={**self.payload,'article_ids':['a','z'],'row_ids':['strategy','strengths']}
         first=strategy.prepare_analysis(self.ds,payload)
         second=strategy.prepare_analysis(self.ds,{**payload,'article_ids':['z','a'],'row_ids':['strengths','strategy']})
@@ -93,7 +93,7 @@ class StrategyTests(unittest.TestCase):
 
     def test_store_stable_id_candidate_and_no_fact_merge(self):
         facts=copy.deepcopy(self.ds['projects']);stored=self.store();item=stored[0]
-        self.assertEqual(item['id'],'construction:samsung-cnt:strategy');self.assertEqual(item['state'],'candidate')
+        self.assertEqual(item['id'],'construction:hanwha-construction:strategy');self.assertEqual(item['state'],'candidate')
         self.assertIn('미검증',item['validation_label']);self.assertEqual(item['usage'],{'input_tokens':10})
         self.store();self.assertEqual(len(self.ds['strategy_summaries']),1);self.assertEqual(self.ds['projects'],facts)
         self.assertEqual(len(item['paragraphs']),1);self.assertEqual(item['paragraphs'][0]['basis'],'public_metadata_ai_candidate')
@@ -139,7 +139,7 @@ class StrategyTests(unittest.TestCase):
             self.assertNotIn('href=',output)
 
     def test_report_splits_company_groups_and_caps_paragraphs(self):
-        board=strategy.default_board();board['companies'].append({'id':'extra','name':'추가','aliases':[]})
+        board=strategy.default_board();board['companies'].extend([{'id':'extra','name':'추가','aliases':[]},{'id':'extra-two','name':'추가2','aliases':[]}])
         strategy.save_board(self.ds,board);self.store();ws=strategy.workspace(self.ds)
         report=strategy.render_report(ws,self.ds['articles'],'date')
         self.assertEqual(report.count('<section>'),2);self.assertIn('section+section{break-before:page}',report)

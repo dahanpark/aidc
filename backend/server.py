@@ -482,7 +482,7 @@ class AtlasApplication:
                     detail = error_info(exc) if not isinstance(exc, (ValueError, ET.ParseError)) else {
                         'code': 'feed_validation', 'message': 'RSS 대신 차단 페이지 또는 비정상 XML이 응답했습니다.'}
                     results.append({'provider': name, 'status': 'failed', **detail})
-            return {'environment': network_environment(), 'results': results,
+            return {'capability':'network_diagnostics_v3','environment': network_environment(), 'results': results,
                     'collected_or_modified_articles': False, 'tested_at': now()}
 
         def edit(ds):

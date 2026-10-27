@@ -20,7 +20,7 @@ DEFAULT_GUIDANCE = {
     'completed':'준공한 데이터센터 실적만 정리하고 수주·계획 실적과 구분한다.',
     'pipeline':'수주·시공 중·추진 중인 사업을 단계와 시점별로 구분한다.',
     'future':'향후 시장·파이프라인 계획을 정리하되 예상 참여와 확정을 구분한다.',
-    'notes':'주요 변동, 확인 필요 사항과 기사 간 상충 내용을 정리한다.',
+    'notes':'전력 수치는 원문 단위와 기준(IT전력·수전전력·발전용량)을 함께 표기한다. MW·kW·MVA와 계획·실제를 구분하고 MVA를 MW로 임의 환산하거나 서로 다른 기준의 용량을 합산하지 않는다. 확인 필요 사항과 상충 근거도 남긴다.',
     'dc-history':'주요 DC·AIDC 시공 사업명, 위치, 참여 역할과 근거 시점을 정리한다.',
     'target-sites':'검토 중이라고 명시된 대상지와 추진 단계를 정리한다.',
     'pc-subsidiary':'PC(프리캐스트 콘크리트) 자회사 보유 여부를 명시 근거로 확인하며 계열 관계를 추정하지 않는다.'}
@@ -43,16 +43,15 @@ RESULT_SCHEMA = {'type':'object','properties':{'cells':{'type':'array','maxItems
 
 
 def default_board():
-    names = [('posco-enc','포스코E&C',['포스코이앤씨','포스코건설']),
+    names = [('posco-enc','포스코이앤씨',['포스코E&C','포스코건설']),
              ('dl-enc','DL E&C',['DL이앤씨','디엘이앤씨']),
              ('hyundai-engineering','현대엔지니어링',[]),('sk-ecoplant','SK에코플랜트',[]),
              ('ipark-hdc','IPARK현대산업개발',['HDC현대산업개발','현대산업개발']),
-             ('hanwha-construction','한화 건설부문',['한화건설','한화 건설부문','㈜한화 건설부문']),
-             ('samsung-cnt','삼성물산',[])]
-    rows = [('organization','조직형태/현황'),('strategy','핵심전략'),('strengths','강점(차별화)'),
-            ('technology','기술·인증·공법 키워드'),('completed','건립실적(준공)'),
-            ('pipeline','수주/시공/추진(파이프라인)'),('future','향후계획(시장/파이프라인)'),
-            ('notes','비고'),('dc-history','주요 DC·AIDC 시공이력'),('target-sites','검토 중인 대상지'),
+             ('hanwha-construction','한화 건설부문',['한화건설','㈜한화 건설부문'])]
+    rows = [('organization','조직 형태/현황'),('strategy','핵심전략'),('strengths','강점(차별화)'),
+            ('technology','기술 인증 공법'),('completed','건립실적(준공)'),
+            ('pipeline','수주/시공/추진'),('future','향후계획'),
+            ('notes','비고(전력단위 표기)'),
             ('pc-subsidiary','PC 자회사 여부')]
     return {'id':'construction','title':'국내 DC.AIDC 전략 (건설사)','analysis_brief':DEFAULT_BRIEF,
             'companies':[{'id':i,'name':n,'aliases':a} for i,n,a in names],
@@ -86,11 +85,37 @@ def boards(ds):
     # Older saved construction sheets may contain only a few custom axes.
     # Restore absent presets in the read view without deleting edits or writing.
     preset=default_board()
+    current=result['construction']
+    previous_labels={'organization':'조직형태/현황','technology':'기술·인증·공법 키워드',
+                     'pipeline':'수주/시공/추진(파이프라인)','future':'향후계획(시장/파이프라인)','notes':'비고'}
+    for row in current['rows']:
+        wanted=next((r for r in preset['rows'] if r['id']==row['id']),None)
+        if wanted and row.get('label')==previous_labels.get(row['id']):row['label']=wanted['label']
+        if row['id']=='notes' and row.get('analysis_guidance')=='주요 변동, 확인 필요 사항과 기사 간 상충 내용을 정리한다.':
+            row['analysis_guidance']=DEFAULT_GUIDANCE['notes']
+    for company in current['companies']:
+        if company['id']=='posco-enc' and company.get('name')=='포스코E&C':
+            aliases=list(dict.fromkeys([*company.get('aliases',[]),'포스코E&C']))
+            if len(aliases)<=20:
+                company['name']='포스코이앤씨'
+                company['aliases']=aliases
+    # Pre-REV020 summaries can refer to virtual axes never explicitly saved.
+    # Restore only those referenced legacy axes, without reintroducing defaults.
+    legacy_companies=[{'id':'samsung-cnt','name':'삼성물산','aliases':[]}]
+    legacy_rows=[{'id':rid,'label':label,'analysis_guidance':DEFAULT_GUIDANCE[rid]}
+                 for rid,label in [('dc-history','주요 DC·AIDC 시공이력'),('target-sites','검토 중인 대상지')]]
+    referenced=[v for v in ds.get('strategy_summaries',{}).values() if v.get('board_id')=='construction']
+    for field,ref,legacy in [('companies','company_id',legacy_companies),('rows','row_id',legacy_rows)]:
+        ids={v['id'] for v in current[field]}
+        current[field].extend(deepcopy(v) for v in legacy if v['id'] not in ids and any(s.get(ref)==v['id'] for s in referenced))
     for field,label in (('companies','name'),('rows','label')):
         existing=result['construction'][field]
         ids={item['id'] for item in existing}
         names={item[label].strip().casefold() for item in existing}
         existing.extend(item for item in preset[field] if item['id'] not in ids and item[label].strip().casefold() not in names)
+        # Latest standard axes first; saved additions remain available afterward.
+        order={v['id']:i for i,v in enumerate(preset[field])}
+        existing.sort(key=lambda v:order.get(v['id'],len(order)))
     result['construction'].setdefault('analysis_brief',DEFAULT_BRIEF)
     for row in result['construction']['rows']:
         row.setdefault('analysis_guidance',DEFAULT_GUIDANCE.get(row['id'],''))
@@ -105,7 +130,7 @@ def save_board(ds,payload):
     for field,label,max_count in [('companies','name',40),('rows','label',30)]:
         # Leave room for restored presets alongside a full legacy custom sheet.
         if bid=='construction':
-            max_count+=len(default_board()[field])
+            max_count+=7 if field=='companies' else 11
         items=payload.get(field)
         if not isinstance(items,list) or not 1<=len(items)<=max_count:
             raise ValueError('전략표 회사/행 배열 한도를 확인하세요.')
@@ -142,7 +167,8 @@ def save_board(ds,payload):
     if isinstance(ds.get('strategy_boards'),list):
         ds['strategy_boards']={b['id']:deepcopy(b) for b in ds['strategy_boards']}
     if old:
-        definition={k:deepcopy(v) for k,v in old.items() if k!='history'}
+        stored=ds.get('strategy_boards',{}).get(bid,old)
+        definition={k:deepcopy(v) for k,v in stored.items() if k!='history'}
         clean['history']=deepcopy(old.get('history',[]))
         if definition!={k:v for k,v in clean.items() if k!='history'}:
             clean['history'].append({'at':datetime.now(timezone.utc).isoformat(),'definition':definition})

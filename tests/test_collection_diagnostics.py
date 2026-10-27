@@ -16,6 +16,11 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 class CollectionDiagnosticsTests(unittest.TestCase):
+    def test_transport_labels_are_allowlisted_without_disclosing_private_environment(self):
+        for value in ('python_verified','windows_system','windows_unavailable','PRIVATE-PROXY'):
+            result=workspace({'news_jobs':{'j':{'id':'j','status':'failed','error_code':'tls_certificate','error_transport':value}}})
+            self.assertEqual(result['jobs'][0]['error_transport'],value if value!='PRIVATE-PROXY' else None)
+            self.assertNotIn('PRIVATE',json.dumps(result))
     def test_read_only_and_no_secret_query_or_content(self):
         ds={'news_jobs':{'j':{'id':'j','status':'running','request':{'q':'PRIVATE'},'error':'SECRET',
               'message':'PRIVATE','pending_windows':[{'query_url':'PRIVATE'}]}},

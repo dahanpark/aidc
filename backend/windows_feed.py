@@ -86,7 +86,7 @@ def fetch(url,timeout):
     validate_feed_url(url)
     executable=Path(os.environ.get('SystemRoot',r'C:\Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe'
     if os.name!='nt' or not executable.is_file():
-        raise NetworkError('tls_certificate','Windows 인증서 신뢰 경로를 사용할 수 없습니다. 회사 CA 구성을 확인하세요.')
+        raise NetworkError('tls_certificate','Windows 인증서 신뢰 경로를 사용할 수 없습니다. 회사 CA 구성을 확인하세요.',transport='windows_unavailable')
     config=_proxy_config(url)
     proxy=config['url']
     if proxy and '://' not in proxy:proxy='http://'+proxy

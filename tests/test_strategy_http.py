@@ -28,7 +28,7 @@ class StrategyHttpTests(unittest.TestCase):
         status, raw, _ = self.request('/api/strategy')
         self.assertEqual(status, 200)
         board = json.loads(raw)['data']['active_board']
-        self.assertEqual((len(board['companies']), len(board['rows'])), (7, 11))
+        self.assertEqual((len(board['companies']), len(board['rows'])), (6, 9))
         board['companies'].append({'id': 'added-company', 'name': '추가 건설사', 'aliases': []})
         board['rows'].append({'id': 'added-row', 'label': '추가 분석 항목', 'analysis_guidance': '공개 근거와 날짜를 연결한다.'})
         board['analysis_brief'] = '확정 사실과 계획을 구분해 최대 3단락으로 요약한다.'
@@ -40,7 +40,7 @@ class StrategyHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         current = json.loads(raw)['data']['active_board']
         self.assertEqual(current['title'], '발주처 전략')
-        self.assertEqual((len(current['companies']), len(current['rows'])), (8, 12))
+        self.assertEqual((len(current['companies']), len(current['rows'])), (7, 10))
         self.assertEqual(current['analysis_brief'], other['analysis_brief'])
         reopened = JsonRepository(self.app.repo.root).snapshot()['datasets']
         self.assertEqual(reopened['strategy_boards']['owners']['rows'][-1]['analysis_guidance'], '공개 근거와 날짜를 연결한다.')

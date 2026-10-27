@@ -16,12 +16,12 @@ class StrategyEditingTests(unittest.TestCase):
         b=strategy.default_board();b['companies']=b['companies'][:1];b['rows']=b['rows'][:1]
         b['companies'][0]['name']='포스코E&C 사용자 표기';ds={'strategy_boards':{'construction':b}};before=copy.deepcopy(ds)
         restored=strategy.boards(ds)[0]
-        self.assertEqual(len(restored['companies']),7);self.assertEqual(len(restored['rows']),11)
+        self.assertEqual(len(restored['companies']),6);self.assertEqual(len(restored['rows']),9)
         self.assertEqual(restored['companies'][0]['name'],'포스코E&C 사용자 표기');self.assertEqual(before,ds)
     def setUp(self):
-        self.ds={'articles':{'a':{'id':'a','mode':'live_metadata','title':'삼성물산 데이터센터 계획 검토',
+        self.ds={'articles':{'a':{'id':'a','mode':'live_metadata','title':'한화 건설부문 데이터센터 계획 검토',
                    'url':'https://example.test/a','published_at':'2026-10-27','publisher':'공개 출처'}}}
-        self.payload={'company_id':'samsung-cnt','row_ids':['strategy'],'article_ids':['a']}
+        self.payload={'company_id':'hanwha-construction','row_ids':['strategy'],'article_ids':['a']}
 
     def test_restored_presets_do_not_make_full_legacy_sheet_unsaveable(self):
         b=strategy.default_board()
@@ -29,34 +29,64 @@ class StrategyEditingTests(unittest.TestCase):
         b['rows']=[{'id':f'custom-row-{i}','label':f'사용자 항목 {i}'} for i in range(30)]
         self.ds['strategy_boards']={'construction':b}
         restored=strategy.boards(self.ds)[0]
-        self.assertEqual((len(restored['companies']),len(restored['rows'])),(47,41))
+        self.assertEqual((len(restored['companies']),len(restored['rows'])),(46,39))
         saved=strategy.save_board(self.ds,restored)
-        self.assertEqual(len(saved['companies']),47)
-        self.assertEqual(len(saved['rows']),41)
+        self.assertEqual(len(saved['companies']),46)
+        self.assertEqual(len(saved['rows']),39)
 
     def store(self):
         p=strategy.prepare_analysis(self.ds,self.payload)
         strategy.validate_and_store(self.ds,p,{'cells':[{'row_id':'strategy','paragraphs':[{
-            'text':'계획 검토 후보','quote':'삼성물산 데이터센터 계획 검토','article_id':'a'}]}]}, {'provider':'mock'})
+            'text':'계획 검토 후보','quote':'한화 건설부문 데이터센터 계획 검토','article_id':'a'}]}]}, {'provider':'mock'})
 
     def test_default_user_axes_and_guidance_are_presets_not_fabricated_results(self):
         b=strategy.default_board()
-        self.assertEqual(len(b['companies']),7);self.assertEqual(len(b['rows']),11)
+        self.assertEqual(len(b['companies']),6);self.assertEqual(len(b['rows']),9)
         self.assertTrue(all(r['analysis_guidance'] for r in b['rows']))
         self.assertIn('3개',b['analysis_brief'])
         self.assertNotIn('5.8조',str(b));self.assertNotIn('strategy_summaries',self.ds)
-        self.assertEqual([r['id'] for r in b['rows']][-2:],['target-sites','pc-subsidiary'])
+        self.assertEqual([r['id'] for r in b['rows']][-2:],['notes','pc-subsidiary'])
+        self.assertEqual([c['name'] for c in b['companies']],['포스코이앤씨','DL E&C','현대엔지니어링','SK에코플랜트','IPARK현대산업개발','한화 건설부문'])
+        self.assertEqual([r['label'] for r in b['rows']],['조직 형태/현황','핵심전략','강점(차별화)','기술 인증 공법','건립실적(준공)','수주/시공/추진','향후계획','비고(전력단위 표기)','PC 자회사 여부'])
+        self.assertIn('MVA',b['rows'][-2]['analysis_guidance'])
+        self.assertIn('임의 환산',b['rows'][-2]['analysis_guidance'])
+
+    def test_latest_axes_preserve_saved_extras_custom_instructions_and_old_definition(self):
+        b=strategy.default_board();b['companies'][0]['name']='포스코E&C'
+        b['companies'].append({'id':'samsung-cnt','name':'삼성물산','aliases':[]})
+        b['rows'].extend([{'id':'dc-history','label':'주요 DC·AIDC 시공이력'}, {'id':'target-sites','label':'검토 중인 대상지'}])
+        b['rows'][0]['label']='사용자 조직 항목';notes=next(r for r in b['rows'] if r['id']=='notes');notes['label']='비고'
+        notes['analysis_guidance']='사용자가 설정한 기준'
+        self.ds['strategy_boards']={'construction':b};before=copy.deepcopy(self.ds)
+        current=strategy.boards(self.ds)[0]
+        self.assertEqual(before,self.ds)
+        self.assertEqual(current['companies'][-1]['id'],'samsung-cnt')
+        self.assertEqual(current['rows'][0]['label'],'사용자 조직 항목')
+        notes=next(r for r in current['rows'] if r['id']=='notes')
+        self.assertEqual(notes['label'],'비고(전력단위 표기)')
+        self.assertEqual(notes['analysis_guidance'],'사용자가 설정한 기준')
+        saved=strategy.save_board(self.ds,current)
+        self.assertEqual(saved['history'][-1]['definition']['companies'][0]['name'],'포스코E&C')
+        self.assertIn('포스코E&C',saved['companies'][0]['aliases'])
+
+    def test_old_virtual_axes_referenced_by_summary_remain_resolvable_without_writes(self):
+        self.ds['strategy_summaries']={'old':{'board_id':'construction','company_id':'samsung-cnt','row_id':'target-sites'}}
+        before=copy.deepcopy(self.ds);b=strategy.boards(self.ds)[0]
+        self.assertEqual(before,self.ds)
+        self.assertIn('samsung-cnt',[c['id'] for c in b['companies']])
+        self.assertIn('target-sites',[r['id'] for r in b['rows']])
+        self.assertNotIn('dc-history',[r['id'] for r in b['rows']])
 
     def test_edit_names_retains_ids_summaries_old_alias_and_history(self):
         self.store();before=copy.deepcopy(self.ds['strategy_summaries'])
         b=strategy.default_board();b['title']='건설사 전략 검토'
-        b['companies'][-1]['name']='삼성물산 건설부문';b['rows'][1]['label']='핵심 추진 전략'
+        b['companies'][-1]['name']='한화 건설부문 사용자 표기';b['rows'][1]['label']='핵심 추진 전략'
         saved=strategy.save_board(self.ds,b)
         self.assertEqual(before,self.ds['strategy_summaries'])
-        self.assertEqual(saved['companies'][-1]['id'],'samsung-cnt')
-        self.assertIn('삼성물산',saved['companies'][-1]['aliases'])
+        self.assertEqual(saved['companies'][-1]['id'],'hanwha-construction')
+        self.assertIn('한화 건설부문',saved['companies'][-1]['aliases'])
         self.assertEqual(saved['history'][0]['definition']['title'],'국내 DC.AIDC 전략 (건설사)')
-        self.assertIn('a',strategy.workspace(self.ds)['company_articles']['samsung-cnt'])
+        self.assertIn('a',strategy.workspace(self.ds)['company_articles']['hanwha-construction'])
 
     def test_guidance_is_in_actual_preview_and_invalidates_old_summary(self):
         self.store();old=strategy.prepare_analysis(self.ds,self.payload)

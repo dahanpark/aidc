@@ -20,7 +20,7 @@ class Connection:
     def __init__(self):
         self.repo=Repo({'settings':{'app':{'ai':{'provider':'mock','model':'synthetic','enabled':True,
                           'enabled_tasks':['strategy'],'max_input_chars':8000}}},
-                       'articles':{'a':{'id':'a','mode':'live_metadata','title':'삼성물산 공개 데이터센터 검토 기사',
+                       'articles':{'a':{'id':'a','mode':'live_metadata','title':'한화 건설부문 공개 데이터센터 검토 기사',
                                       'note':'PRIVATE_NOTE','body':'PRIVATE_BODY'}},
                        'projects':{'p':{'name':'원본'}}})
         self.read_snapshot=self.repo.snapshot;self.lock=threading.RLock();self.connected=True;self.key='SYNTHETIC_SECRET'
@@ -30,12 +30,12 @@ class Connection:
 
 def result():
     return {'cells':[{'row_id':'strategy','paragraphs':[{'text':'검토 단계의 근거 후보다.',
-                      'quote':'삼성물산 공개 데이터센터 검토 기사','article_id':'a'}]}]}
+                      'quote':'한화 건설부문 공개 데이터센터 검토 기사','article_id':'a'}]}]}
 
 
 class StrategyAnalysisTests(unittest.TestCase):
     def setUp(self):
-        self.connection=Connection();self.payload={'company_id':'samsung-cnt','row_ids':['strategy'],
+        self.connection=Connection();self.payload={'company_id':'hanwha-construction','row_ids':['strategy'],
                                                  'article_ids':['a'],'consent_public_metadata':True}
     def profile(self):return self.connection.repo.ds['settings']['app']['ai']
 
@@ -170,7 +170,7 @@ class StrategyAnalysisTests(unittest.TestCase):
     def test_three_articles_trimmed_to_configured_default_and_stale_uses_full_source(self):
         self.connection.repo.ds['articles']['a']['feed_excerpt']='공개 문장 '*400
         for aid in ['b','c']:
-            self.connection.repo.ds['articles'][aid]={'id':aid,'mode':'live_metadata','title':'삼성물산 공개 기사 '+aid,'feed_excerpt':'공개 문장 '*400}
+            self.connection.repo.ds['articles'][aid]={'id':aid,'mode':'live_metadata','title':'한화 건설부문 공개 기사 '+aid,'feed_excerpt':'공개 문장 '*400}
         payload={**self.payload,'article_ids':['a','b','c']}
         preview=strategy_analysis.preview(self.connection,payload)
         self.assertEqual([len(a['text']) for a in preview['articles']],[1200]*3)

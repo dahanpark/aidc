@@ -13,6 +13,15 @@ RSS=b'<rss><channel/></rss>'
 ENV={'https_proxy_configured':False,'custom_ca_configured':False,'pac_detected':False,'note':'test'}
 
 class NetworkDiagnosticTests(unittest.TestCase):
+    def test_failed_system_tls_path_and_backend_capability_are_visible_without_private_details(self):
+        from backend.network import NetworkError
+        app=AtlasApplication.__new__(AtlasApplication);app.repo=Mock()
+        error=NetworkError('tls_certificate','Windows default certificate validation failed',transport='windows_system')
+        with patch('backend.collector.fetch_public_feed_bounded',side_effect=error),patch('backend.network.network_environment',return_value=ENV):
+            result=app.mutate('network/test',{})
+        self.assertEqual(result['capability'],'network_diagnostics_v3')
+        self.assertEqual([r['transport'] for r in result['results']],['windows_system']*2)
+        self.assertEqual(app.repo.mock_calls,[])
     def test_first_request_failure_does_not_hide_diagnostic_or_skip_second_source(self):
         app=AtlasApplication.__new__(AtlasApplication);app.repo=Mock()
         with patch('backend.collector.fetch_public_feed_bounded',side_effect=[socket.gaierror('PRIVATE'),RSS]) as fetch,patch('backend.network.network_environment',return_value=ENV):

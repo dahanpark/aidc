@@ -31,11 +31,11 @@ class Rev014ApiTests(unittest.TestCase):
         self.thread.start()
         self.base = f'http://127.0.0.1:{self.server.server_port}'
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        self.title = '삼성물산 국내 AI 데이터센터 검토 공개 기사'
+        self.title = '한화 건설부문 국내 AI 데이터센터 검토 공개 기사'
         def seed(ds):
             ds.setdefault('articles', {})['rev014-public'] = {
                 'id': 'rev014-public', 'title': self.title, 'mode': 'live_metadata',
-                'feed_excerpt': '삼성물산은 국내 AI 데이터센터 건설을 검토한다.',
+                'feed_excerpt': '한화 건설부문은 국내 AI 데이터센터 건설을 검토한다.',
                 'published_at': '2026-10-26T00:00:00Z', 'scope': 'kr-ai',
                 'url': 'https://example.com/public', 'note': 'PRIVATE-NOTE', 'body': 'PRIVATE-BODY'}
             ds.setdefault('settings', {}).setdefault('app', {}).setdefault('ai', {}).update({
@@ -87,8 +87,8 @@ class Rev014ApiTests(unittest.TestCase):
         status, reply = self.json_request('/api/strategy?scope=all&period=all')
         self.assertEqual(status, 200)
         board = reply['data']['active_board']
-        self.assertEqual(len(board['companies']), 7)
-        self.assertEqual(len(board['rows']), 11)
+        self.assertEqual(len(board['companies']), 6)
+        self.assertEqual(len(board['rows']), 9)
         self.assertEqual(board['id'], 'construction')
         self.assertNotIn('construction', before['datasets'].get('strategy_boards', {}))
         status, raw, headers = self.request('/api/strategy/report?scope=all&period=all')
@@ -103,7 +103,7 @@ class Rev014ApiTests(unittest.TestCase):
         board['companies'].append({'id':'new-co','name':'추가 회사','aliases':['추가사']})
         board['rows'].append({'id':'new-row','label':'추가 행'})
         self.assertEqual(self.request('/api/strategy/save', board)[0], 200)
-        self.assertEqual(len(self.app.repo.snapshot()['datasets']['strategy_boards']['construction']['companies']), 8)
+        self.assertEqual(len(self.app.repo.snapshot()['datasets']['strategy_boards']['construction']['companies']), 7)
         before = self.app.repo.snapshot()
         self.assertEqual(self.request('/api/strategy/save', strategy.default_board())[0], 400)
         self.assertEqual(self.app.repo.snapshot(), before)
@@ -112,7 +112,7 @@ class Rev014ApiTests(unittest.TestCase):
         self.assertEqual(self.json_request('/api/strategy?board_id=owners')[1]['data']['active_board']['title'], '발주처')
 
     def test_strategy_preview_consent_single_mocked_call_and_cached_result(self):
-        payload = {'board_id':'construction','company_id':'samsung-cnt','row_ids':['strategy'],'article_ids':['rev014-public']}
+        payload = {'board_id':'construction','company_id':'hanwha-construction','row_ids':['strategy'],'article_ids':['rev014-public']}
         before = self.app.repo.snapshot()
         with patch('backend.ai_analysis.infer') as infer:
             status, reply = self.json_request('/api/strategy/preview', payload)
@@ -153,7 +153,7 @@ class Rev014ApiTests(unittest.TestCase):
         self.assertEqual(self.app.repo.snapshot(),before)
 
     def strategy_summary(self):
-        return {'id':'rev014-summary','board_id':'construction','company_id':'samsung-cnt',
+        return {'id':'rev014-summary','board_id':'construction','company_id':'hanwha-construction',
                 'row_id':'strategy','article_ids':['rev014-public'],
                 'paragraphs':[{'text':'공개 검토 근거 후보','quote':self.title,'article_id':'rev014-public'}]}
 

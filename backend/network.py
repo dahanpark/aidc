@@ -16,9 +16,10 @@ from urllib.parse import urlsplit
 
 
 class NetworkError(OSError):
-    def __init__(self, code, message):
+    def __init__(self, code, message, *, transport=None):
         super().__init__(message)
         self.code = code
+        self.transport = transport
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -48,7 +49,10 @@ def error_info(error):
     current = error
     for _ in range(6):
         if isinstance(current, NetworkError):
-            return {'code': current.code, 'message': str(current)}
+            detail = {'code': current.code, 'message': str(current)}
+            if current.transport in ('python_verified','windows_system','windows_unavailable'):
+                detail['transport'] = current.transport
+            return detail
         if isinstance(current, ssl.SSLCertVerificationError):
             return {'code': 'tls_certificate', 'message': 'TLS 인증서 검증 실패 · 회사 루트 인증서/ATLAS_CA_BUNDLE을 확인하세요.'}
         if isinstance(current, urllib.error.HTTPError):

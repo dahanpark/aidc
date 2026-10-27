@@ -63,10 +63,12 @@ class FeedWorkerTests(unittest.TestCase):
             repo=JsonRepository(Path(temp)/'store')
             request={'period':'1y','source_ids':['INT-M02'],'max_requests':8}
             events=[]
-            blocked=Mock(side_effect=NetworkError('feed_deadline','fixed'))
+            blocked=Mock(side_effect=NetworkError('tls_certificate','fixed',transport='windows_system'))
             first=collect_news(repo,ROOT,request,fetcher=blocked,progress=events.append)
             self.assertEqual(blocked.call_count,3);self.assertEqual(first['stop_reason'],'network_blocked')
             self.assertEqual(first['status'],'failed');self.assertTrue(first['can_resume'])
+            self.assertEqual(first['error_transport'],'windows_system')
+            self.assertTrue(any(c.get('error_transport')=='windows_system' for c in repo.snapshot()['datasets']['news_coverage'].values()))
             self.assertGreater(len(first['pending_windows']),0);self.assertEqual(first['new_articles'],0)
             stamp=format_datetime(datetime.now(timezone.utc)-timedelta(hours=1))
             raw=('<rss><channel><item><title>Data center construction project</title><link>https://www.datacenterknowledge.com/test-worker</link><pubDate>'+stamp+'</pubDate></item></channel></rss>').encode()
