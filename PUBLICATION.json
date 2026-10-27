@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
-  "source_commit": "961bb1a0f10c7c4813fd242350a3879277abe461",
+  "source_commit": "19f79387331344854e7ec02a505273bfbef690d1",
   "source_revision": "REV018",
   "repository": "dahanpark/aidc",
-  "exported_at": "20261027T005832855700Z",
+  "exported_at": "20261027T011332059376Z",
   "files": {
     "backend/__init__.py": "d832e247d160c2887702a5eb23fbec8bd26d88ecd62b52d02052bd690ce1e5d5",
     "backend/ai_analysis.py": "0cb98bb39c1f2fda1bf23fbd1acda091c2b96a9b0699468235d2a5995574e3c3",
@@ -40,7 +40,7 @@
     "fixtures/README.md": "bb005c00f0ef8cb7f580dad0678b7bd0d04c7bce749cc0f89a0e85a008b6c280",
     "fixtures/official_manual_gold.json": "48added146c5b47a57dd2f081ef0b672bfad7d00eb1be0054db7f6e5827aa5fa",
     "frontend/app.css": "07807116e7b1eb738f265e9485d4102671e6888c367a1ac8fe8527ddcd93e2eb",
-    "frontend/app.js": "612f172b56052af76b6efb7bc25ef0726fdc7f0d9533a0a63990e1c3ca1336ed",
+    "frontend/app.js": "6f4b6ea202953ce7c06f9d3a147ab0e4b5a0f983ef82ce106440cca2625ffdb6",
     "frontend/assets/maps/ATTRIBUTION.md": "6959c6422b8108ba9e4687b17998a7cc77068e77aa501929fb0c367b6ad59466",
     "frontend/assets/maps/korea.geojson": "7e50efda2a12a9d90f444468f1d27e4d23ab84bd242311dd8068740036f42499",
     "frontend/assets/maps/positions.json": "f34e370951722437414335acac2f1193c6482c2ee9766da83f32dfe131a7176d",
