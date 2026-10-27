@@ -464,6 +464,7 @@ class AtlasApplication:
         if operation == 'ai/match-decision':
             return ai_analysis.decide_match(self.repo, payload)
         if operation == 'network/test':
+            import xml.etree.ElementTree as ET
             from .collector import fetch_public_feed_bounded as fetch_public_feed, GOOGLE
             from .network import network_environment, error_info
             results = []
@@ -471,7 +472,6 @@ class AtlasApplication:
                               ('DCD RSS', 'https://www.datacenterdynamics.com/en/rss/')]:
                 try:
                     content = fetch_public_feed(url)
-                    import xml.etree.ElementTree as ET
                     if b'<!DOCTYPE' in content.upper() or b'<!ENTITY' in content.upper():
                         raise ValueError('Invalid XML')
                     tag = ET.fromstring(content).tag.rsplit('}', 1)[-1]
@@ -754,6 +754,7 @@ def make_server(app, port=8765):
         def _write(self, operation=None):
             if not self._guard(write=True):
                 return
+            requested_operation = operation or urlsplit(self.path).path.removeprefix('/api/')
             try:
                 if self.headers.get("Transfer-Encoding"):
                     raise ValueError("Chunked request unsupported")
@@ -773,6 +774,10 @@ def make_server(app, port=8765):
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                     return
                 result = app.mutate(operation or path.removeprefix("/api/"), payload)
+                if requested_operation == 'network/test':
+                    # A connectivity test neither writes nor needs the JSON store.
+                    self._json({'data': result, 'as_of': now(), 'warnings': []})
+                    return
                 self._json({"data": result, "as_of": now(), "snapshot_id": app.view_generation(), "warnings": []})
             except (ValueError, KeyError, TypeError) as error:
                 # Validation messages are deliberately fixed; never echo untrusted body/keys.
@@ -780,7 +785,11 @@ def make_server(app, port=8765):
             except TimeoutError:
                 self._json({"error": "저장 작업이 진행 중입니다. 잠시 뒤 다시 시도하십시오."}, 409)
             except Exception:
-                self._json({"error": "저장에 실패했습니다. 원본 JSON은 이전 정상 세대를 유지합니다."}, 500)
+                if requested_operation == 'network/test':
+                    self._json({'error': '네트워크 진단을 완료하지 못했습니다. 이 진단은 JSON 저장을 수행하지 않습니다.',
+                                'code': 'network_diagnostic_failed'}, 500)
+                else:
+                    self._json({"error": "저장에 실패했습니다. 원본 JSON은 이전 정상 세대를 유지합니다."}, 500)
 
         def do_POST(self):
             self._write()
