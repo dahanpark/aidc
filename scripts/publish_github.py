@@ -14,15 +14,15 @@ import urllib.request
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
-AI_DOC_TAG = 'atlas-strategy-tls-documents-20261027'
-AI_DOC_VERSION = '2.9'
+AI_DOC_TAG = 'atlas-ai-cleanup-documents-20261027'
+AI_DOC_VERSION = '3.0'
 
 
 def ai_documentation_readme():
     base = f'https://github.com/dahanpark/aidc/releases/download/{AI_DOC_TAG}'
     return f'''## 최신 기획서·매뉴얼 · AI 분석 v{AI_DOC_VERSION}
 
-[AI 문서 릴리스](https://github.com/dahanpark/aidc/releases/tag/{AI_DOC_TAG})는 REV020의 기본6회사·9항목·전력단위 표기와 TLS 실패 경로 구분 및 REV019의 편집/공개본 출력 개선, REV018의 다른 PC 수집 시간 제한·경량 진행·실패 구간 재개·실행 버전 확인과 REV017의 Con. Status 기본 구성·항목별 AI 분석 기준·카테고리/회사/행 편집과 REV016의 수집 중단 진단·사내 API 계약 확인 경계와 REV015의 확인한 동일 사업 연결·별칭/기사/관계도 통합 표시와 PC별 AI·전략표를 설명합니다. 공개 기사 근거 추출·동일 사업 후보 비교·동향/점검 요약, PC별 키 등록·삭제, 전송 확인·공유 호출/입출력 한도·미분류 후보·건설사 전략 종합·A3 출력·실제 품질 검증 절차를 포함합니다. 실제 개인 API 품질·회사 PC·화면 인수 완료를 뜻하지 않습니다.
+[AI 문서 릴리스](https://github.com/dahanpark/aidc/releases/tag/{AI_DOC_TAG})는 REV021의 CON STATUS 독립 메뉴·AI 설정 분리·미분류/사업 성격 확인 적용·동일 법인 대표 표시·해제와 REV020의 기본6회사·9항목·전력단위 표기와 TLS 실패 경로 구분 및 REV019의 편집/공개본 출력 개선, REV018의 다른 PC 수집 시간 제한·경량 진행·실패 구간 재개·실행 버전 확인과 REV017의 Con. Status 기본 구성·항목별 AI 분석 기준·카테고리/회사/행 편집과 REV016의 수집 중단 진단·사내 API 계약 확인 경계와 REV015의 확인한 동일 사업 연결·별칭/기사/관계도 통합 표시와 PC별 AI·전략표를 설명합니다. 공개 기사 근거 추출·동일 사업 후보 비교·동향/점검 요약, PC별 키 등록·삭제, 전송 확인·공유 호출/입출력 한도·미분류 후보·건설사 전략 종합·A3 출력·실제 품질 검증 절차를 포함합니다. 실제 개인 API 품질·회사 PC·화면 인수 완료를 뜻하지 않습니다.
 
 |최신 자료|다운로드|
 |---|---|
@@ -173,6 +173,7 @@ Windows에서는 ZIP 전체를 압축 해제한 뒤 루트의 **AIDC ATLAS.cmd**
 
 - DASHBOARD: 국내 AIDC 기본 범위, 관계도 우선·오른쪽 검색/지표·지도·기사
 - COMPANY: 기업 성격과 1-hop 관계, 관련 사업·기사, 사용자 분류
+- CON STATUS: 기본 6회사·9항목 전략표, 별도 AI·검색·축 편집 설정, 근거 표본 미리보기·명시 분석·A3 가로 출력
 - PROJECT: 프로젝트별 기업·정보·기사 근거
 - LOCATION: 국내 AIDC 기본 범위, 지도 우선·오른쪽 조건/지역 기사
 - NEWS / SYNTHESIS / SCRAP / ALERTS / SETTINGS

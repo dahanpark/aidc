@@ -58,7 +58,7 @@ briefing마다 해당 입력 기사 ID를 연결하고, 근거 부족은 확인 
 def public_article(article, text_limit=1200):
     # User notes, internal links, bookmark notes and manually entered excerpts
     # are never part of the provider payload. Manual articles need future consent.
-    if article.get('mode') != 'live_metadata' or article.get('visibility') == 'private':
+    if article.get('mode') != 'live_metadata' or article.get('visibility') in ('private','internal'):
         return None
     fields = [article.get('title'), article.get('feed_excerpt'), article.get('description')]
     text = '\n'.join(v for v in fields if isinstance(v, str))[:text_limit]
@@ -376,7 +376,7 @@ def workspace(ds, article_ids):
     selected = set(article_ids)
     runs = sorted(ds.get('ai_runs', {}).values(), key=lambda r: r.get('created_at', ''), reverse=True)
     # A partial overlap must not display a summary of articles outside the scope.
-    applicable = [r for r in runs if r.get('task') not in ('strategy', 'classify') and set(r.get('article_ids', [])) <= selected]
+    applicable = [r for r in runs if r.get('task') not in ('strategy', 'classify', 'company_identity') and set(r.get('article_ids', [])) <= selected]
     latest = next((r for r in applicable if r.get('status') == 'completed'), None)
     if latest and latest.get('source_hashes'):
         source_changed = any(hashlib.sha256(json.dumps(public_article(ds.get('articles', {}).get(aid, {}),

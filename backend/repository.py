@@ -264,6 +264,9 @@ class JsonRepository:
         if datasets.get('project_identity_groups'):
             from .project_identity import validate_records
             validate_records(datasets)
+        if datasets.get('article_scope_decisions') or datasets.get('company_identity_groups') or datasets.get('project_scope_decisions'):
+            from .ai_cleanup import validate_records
+            validate_records(datasets)
         # Strategy JSON is durable evidence, with the same reference guarantees
         # as bookmarks and project relationships. Default board is virtual.
         from . import strategy

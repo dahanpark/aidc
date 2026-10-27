@@ -18,11 +18,12 @@
     <button data-view="regions" class="nav" aria-label="국내 도시와 해외 국가별 정보" title="국내 도시와 해외 국가별 정보"><span aria-hidden="true">◎</span><small>LOCATION</small></button>
     <button data-view="news" class="nav" aria-label="기사 뉴스 센터" title="기사 뉴스 센터"><span aria-hidden="true">▧</span><small>NEWS</small></button>
     <button data-view="synthesis" class="nav" aria-label="기사 종합 피벗 분석" title="기사 종합 피벗 분석"><span aria-hidden="true">▦</span><small>SYNTHESIS</small></button>
+    <button data-view="strategy" class="nav" aria-label="CON STATUS · 국내 DC AIDC 전략표" title="CON STATUS · 건설사 전략"><span aria-hidden="true">▥</span><small>CON STATUS</small></button>
     <button data-view="bookmarks" class="nav" aria-label="스크랩" title="스크랩"><span aria-hidden="true">◇</span><small>SCRAP</small></button>
     <button data-view="notifications" class="nav" aria-label="알림함" title="알림함"><span aria-hidden="true">♧</span><small>ALERTS</small><i id="noticeCount" hidden></i></button>
   </nav>
   <button data-view="settings" class="nav rail-bottom" aria-label="환경 설정" title="환경 설정"><span aria-hidden="true">⚙</span><small>SETTINGS</small></button>
-  <span class="rail-version" title="화면 REV020 · 실행 서버 적용 여부는 SETTINGS 연결 진단에서 확인">UI REV020</span>
+  <span class="rail-version" title="화면 REV021 · 실행 서버 적용 여부는 SETTINGS 연결 진단에서 확인">UI REV021</span>
 </aside>
 <div class="workspace">
   <header class="topbar">
@@ -30,6 +31,7 @@
     <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="사업·기업·지역·근거 검색" aria-label="사업, 기업, 지역, 근거 검색"><kbd>/</kbd></label>
     <span class="connection" id="connection"><i></i>로컬 연결 중</span>
     <button id="aiConnect" class="button small ai-connect" type="button">AI 연결</button>
+    <button id="aiCleanup" class="button small" type="button">AI 자료 정리</button>
     <button id="refresh" class="icon-button" title="저장된 자료 새로고침" aria-label="저장된 자료 새로고침">↻</button>
   </header>
   <div class="mode-banner"><span class="status-dot"></span><strong>공개 기사 + 검증 근거 기반 로컬 파일럿</strong><span>실시간 공개 메타데이터 · 고정 검증 사례</span><span class="banner-tail">기사 본문 미확인 · 사내 AI 미연결</span></div>
@@ -54,5 +56,5 @@
 <dialog id="modal" aria-labelledby="modalTitle"><div class="modal-head"><div><p class="eyebrow">AIDC ATLAS</p><h2 id="modalTitle"></h2></div><button id="modalClose" class="icon-button" aria-label="대화상자 닫기">✕</button></div><div id="modalContent"></div></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 <script src="/atlas_graph.js" defer></script><script src="/atlas_map.js" defer></script><script src="/atlas_analysis.js" defer></script><script src="/atlas_workspaces.js" defer></script><script src="/atlas_workbench.js" defer></script><script src="/atlas_strategy.js" defer></script><script src="/atlas_ai_limits.js" defer></script><script src="/atlas_connection_status.js" defer></script><script src="/atlas_project_identity.js" defer></script><script src="/atlas_collection_live.js"></script>
-<script src="/app.js" defer></script>
+<script src="/atlas_ai_cleanup.js" defer></script><script src="/app.js" defer></script>
 </body></html>

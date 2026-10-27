@@ -502,12 +502,20 @@ def build_workspace(snapshot, filters=None, as_of=None, *, include_catalog=False
     normalized = normalize_filters(filters, as_of)
     # Enrichment mutates only these three datasets. Keep the potentially large
     # collection checkpoints read-only instead of cloning the whole archive.
-    ds = dict(snapshot.get('datasets', snapshot))
+    source_datasets = snapshot.get('datasets', snapshot)
+    ds = dict(source_datasets)
+    from .ai_cleanup import project_scope_snapshot
+    ds['projects']=project_scope_snapshot({'datasets':source_datasets})['datasets'].get('projects',{})
     for name in ('articles', 'companies', 'news_updates'):
         ds[name] = deepcopy(ds.get(name, {}))
     enrich_articles(ds, [aid for aid,article in ds.get('articles',{}).items()
                         if article.get('analysis_version') != ENRICHMENT_VERSION or
                         article.get('analysis_input_hash') != _analysis_stamp(article)])
+    from .ai_cleanup import apply_scopes,company_map
+    apply_scopes(ds,ds['articles'],source_datasets.get('articles',{}))
+    identities=company_map(source_datasets)
+    selected_company=normalized.get('company_id')
+    company_filter_ids={cid for cid,canonical in identities.items() if canonical==identities.get(selected_company,selected_company)} | ({selected_company} if selected_company else set())
     projects, companies = ds.get('projects', {}), ds.get('companies', {})
     start = _dt(normalized['start']) if normalized['start'] else None
     end = _dt(normalized['end'])
@@ -546,7 +554,7 @@ def build_workspace(snapshot, filters=None, as_of=None, *, include_catalog=False
         # company, geographic scope or place must not hide other company choices.
         if include_catalog and article['domain_relevance']['status'] == 'relevant':
             catalog_articles.append(article)
-        if normalized['company_id'] and normalized['company_id'] not in _article_companies(article, projects):
+        if normalized['company_id'] and not company_filter_ids.intersection(_article_companies(article, projects)):
             continue
         in_geo = (not normalized['country'] or normalized['country'] in article['geography']['countries']) and (not normalized['city'] or normalized['city'] in article['geography']['cities'])
         relevance = article['domain_relevance']['status']

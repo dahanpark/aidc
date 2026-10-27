@@ -7,6 +7,7 @@
   const titles = {overview: ['사업의 변화에서, 다음 기회로.', '공개 근거를 따라 사업과 참여 기업의 연결을 살펴보세요.'], projects: ['사업을 한눈에, 근거는 가까이.', '프로그램·사이트·단계와 계획·실제, 용량의 기준을 구분합니다.'], companies: ['기업의 오늘에서, 향후 3년으로.', '확인된 사업 참여와 공개 일정만 모아 봅니다. 미정·장기는 별도로 표시합니다.'], sources: ['모든 연결에는 근거가 있습니다.', '공개 출처와 발행 시점, 확인된 원문 범위를 함께 확인하세요.'], bookmarks: ['다시 볼 근거를 모아 두는 곳.', '태그·폴더·직접 메모로 정리합니다. 메모는 외부 보고서에서 제외합니다.'], notifications: ['중요한 변화, 놓치지 않도록.', '저장된 변화에 대한 로컬 알림함입니다. OS 알림 발송은 연결되지 않았습니다.'], settings: ['인텔리전스의 작동 방식을 설정합니다.', '로컬 데이터, 고정 자료 재처리, 사내 AI 연결 상태를 관리합니다.']};
   titles.news=['기사에서 변화로, 근거를 연결합니다.', '중요매체 기사 · 출처별 발행시각 · 메타데이터 종합 · 통합표를 같은 조건으로 살펴보세요.'];
   titles.synthesis=['기사 종합과 관계 분석','근거를 사업·기업·역할·지역·기간으로 비교합니다.'];
+  titles.strategy=['CON STATUS','국내 DC·AIDC 전략 · 공개 기사 근거 종합'];
   titles.regions=['지역별 AIDC 인텔리전스','국내 도시·해외 국가의 사업 후보·기업·기사를 비교합니다.'];
   const arr = (key) => Array.isArray(S.data?.[key]) ? S.data[key] : [];
   const find = (key, id) => arr(key).find(x => x.id === id);
@@ -69,6 +70,8 @@
       if(request!==S.request)return;
       if (!envelope.data || !Array.isArray(envelope.data.projects)) throw new Error('저장소 데이터 형식이 올바르지 않습니다.');
       S.data = envelope.data; S.token = envelope.csrf_token || ''; S.generation=envelope.snapshot_id;
+      const identityMap=S.data.company_identity_map||{};
+      for(const key of ['companyFocus','selectedCompany','newsCompany'])if(identityMap[S[key]])S[key]=identityMap[S[key]];
       if(S.graphSelection&&!S.graphSelection.node?.clustered_ids){const current=[...(S.data.ontology?.nodes||[]),...(S.data.ontology?.company_ontology?.nodes||[])].find(n=>n.id===S.graphSelection.id);const edge=[...(S.data.ontology?.edges||[]),...(S.data.ontology?.company_ontology?.edges||[])].find(e=>e.id===S.graphSelection.id);S.graphSelection=current?{kind:'node',id:current.id,node:current,article_ids:current.article_ids}:edge?{kind:'edge',id:edge.id,edge,article_ids:edge.article_ids}:null;}
       S.integrityError=false;$('#errorBanner').hidden = true; $('#connection').replaceChildren(add(el('i')), document.createTextNode('로컬 저장소 연결'));
       $('#snapshot').textContent = `JSON 원본 · 스냅샷 ${text(envelope.snapshot_id, '—')}`;
@@ -102,7 +105,7 @@
       const crumb = el('div', 'callout'); add(crumb, el('strong', '', `기업 맥락 · ${text(find('companies', S.selectedCompany)?.name)}`), document.createTextNode('　'), button('전체로 복귀 ↗', 'button small', () => { S.selectedCompany = null; S.selected = null; S.newsCompany=''; load(); })); root.append(crumb);
     }
     if(S.view==='news'&&S.newsProject)root.append(add(el('div','callout'),el('strong','',`선택 사업 · ${find('projects',S.newsProject)?.name||S.newsProject}`),button('사업 조건 해제','button small',()=>{S.newsProject='';load();})));
-    ({overview: renderOverview, projects: renderProjects, companies: renderCompanies, regions:renderRegions, news:renderNews, synthesis:renderSynthesis, sources:renderNews, bookmarks: () => renderSources(true), notifications: renderNotifications, settings: renderSettings})[S.view](root);
+    ({overview: renderOverview, projects: renderProjects, companies: renderCompanies, regions:renderRegions, news:renderNews, synthesis:renderSynthesis, strategy:mountStrategy, sources:renderNews, bookmarks: () => renderSources(true), notifications: renderNotifications, settings: renderSettings})[S.view](root);
     window.AtlasWorkbench?.compose(root,{view:S.view,controls});
   }
   function empty(title, description) { return add(el('div', 'empty'), el('span', 'empty-icon', '◈'), el('h3', '', title), el('p', '', description)); }
@@ -815,7 +818,6 @@
     const headers=['발행일','기사 제목','기업','역할','등록 사업','기사 사업명 후보','기사 진행 표현','지역','주제','근거 구분','출처','링크'];const articleIndex=new Map(nitems('articles').map(a=>[a.id,a]));const rows=model.records.map(r=>{const a=articleIndex.get(r.article_id)||{},label=(key,id)=>model.labels[key]?.[id||'unknown']||'미확인';return [date(r.published_at),a.title,label('company',r.company_id),label('role',r.role),label('project',r.project_id),label('candidate',r.candidate_id),(r.stage||[]).map(v=>label('stage',v)).join(' · '),(r.location||[]).map(v=>label('location',v)).join(' · '),(r.category||[]).map(v=>label('category',v)).join(' · '),r.basis,a.publisher,a.url];});
     detail.append(el('p','pivot-note',`같은 기사의 서로 다른 역할은 별도 원장 행입니다. ${rows.length}행 전체를 CSV로 받거나 아래에서 페이지별로 볼 수 있습니다. 역할 미확인과 사업 미확인을 그대로 남깁니다.`),button('정보 원장 전체 CSV ↓','button small',()=>synthesisCsv([headers,...rows],'AIDC-ATLAS-evidence-ledger.csv')));
     const detailPage=Math.max(1,Math.min(S.ledgerPage||1,Math.ceil(rows.length/24)||1));S.ledgerPage=detailPage;const detailScroll=el('div','pivot-scroll'),ledger=el('table','synthesis-evidence-table'),thead=el('tr');headers.slice(0,-1).forEach(h=>thead.append(el('th','',h)));ledger.append(thead);rows.slice((detailPage-1)*24,detailPage*24).forEach(row=>{const tr=el('tr');row.slice(0,-1).forEach((v,i)=>tr.append(i===1?add(el('td'),link(v,row.at(-1))):el('td','',v)));ledger.append(tr);});detailScroll.append(ledger);detail.append(detailScroll);const dp=add(el('div','news-pagination'),el('span','',`${detailPage}/${Math.ceil(rows.length/24)||1} · ${rows.length}행`));[['이전',-1,detailPage<=1],['다음',1,detailPage*24>=rows.length]].forEach(([label,delta,disabled])=>{const b=button(label,'button small',()=>{S.ledgerPage+=delta;S.ledgerOpen=true;render();});b.disabled=disabled;dp.append(b);});detail.open=Boolean(S.ledgerOpen);detail.addEventListener('toggle',()=>{S.ledgerOpen=detail.open;});detail.append(dp);root.append(detail);
-    mountStrategy(root);
   }
   function mountStrategy(root){
     if(!window.AtlasStrategy)return;
@@ -893,11 +895,13 @@
     const list=el('ul','settings-list');[['상태',profile.connected?'연결 사용 중':profile.credential_present?'키 보관 · 연결 해제':'미연결 / 이 PC에 키 없음'],['제공사',profile.provider_label||'미설정'],['모델',profile.model||'미설정'],['인증 보관',profile.secret_ref||'미설정'],['마지막 키 인증',profile.verified_at?dateTime(profile.verified_at):'미확인'],['실제 분석 성공',profile.inference_verified_at?dateTime(profile.inference_verified_at):'아직 실행하지 않음'],['계정 정보','API 키 연결 · 이메일/구독 정보는 조회하지 않음'],['오늘 호출',`${S.data?.ai?.today_calls||0} / ${profile.daily_call_limit||10}회 · 실패 포함`]].forEach(([k,v])=>list.append(add(el('li'),el('span','',k),el('small','',v))));panel.append(list);
     add(panel,add(el('div','card-actions'),button('API 키 연결','button',aiConnectForm),profile.credential_present?button('모델 선택','button',aiModelForm):null,profile.connected?button('연결 해제','button',async()=>{try{await mutate('/api/ai/disconnect',{},'AI 연결을 해제했습니다. 보관 키와 분석 자료는 유지합니다.');}catch{}}):null,profile.secret_ref?button('키·환경변수 삭제','button',aiForgetDialog):null,button('분석 한도','button',()=>formShell('AI 사용 한도',g=>{const batch=field(g,'한 번에 분석할 기사 · 1~20개','max_articles_per_run',profile.max_articles_per_run||3,'number');batch.min=1;batch.max=20;batch.required=true;const daily=field(g,'하루 API 호출 · 1~500회','daily_call_limit',profile.daily_call_limit||10,'number');daily.min=1;daily.max=500;daily.required=true;add(g,el('p','metadata-label field full','호출 횟수 제한이며 금액 상한은 아닙니다. 금액 한도는 제공사 계정에서도 설정하세요. 같은 입력은 저장 결과를 재사용합니다.'));},async f=>{await mutate('/api/settings',{ai_limits:{max_articles_per_run:Number(f.get('max_articles_per_run')),daily_call_limit:Number(f.get('daily_call_limit'))}},'AI 분석 한도를 저장했습니다.');}))));
     panel.append(button('미분류 기사 AI 후보 검토','button',()=>startAIAnalysis(true)));
+    panel.append(button('중복 기업 AI 후보·통합 검토','button',()=>openAICleanup('company')));
     if(window.AtlasAILimits)window.AtlasAILimits.mount(panel,{profile,save:async limits=>{await mutate('/api/settings',{ai_limits:limits},'AI 사용 한도와 역할을 저장했습니다.');}});
     if(profile.credential_error)panel.append(el('p','callout warning','Windows 보안 저장소에 접근하지 못했습니다. 이 PC에서 키를 다시 연결하거나 Windows 사용자 상태를 확인하세요.'));
     return panel;
   }
   async function startAIAnalysis(classify=false){
+    if(classify===true){await openAICleanup('classify');return;}
     classify = classify === true;
     if(!S.data?.ai?.connection?.connected){aiConnectForm();return;}
     const limit=S.data.ai.connection.max_articles_per_run||3,pool=nitems('articles').filter(a=>a.mode==='live_metadata'&&(!classify||!a.scope_classification?.primary_scope)),selected=pool.filter(a=>S.selectedArticles.has(a.id)),articles=(selected.length?selected:pool).slice(0,limit),content=el('div');
@@ -908,10 +912,27 @@
     add(content,el('p','callout',`현재 범위의 ${selected.length?'선택':'최신'} 공개 기사 ${articles.length}개 / 관련 공개 기사 ${pool.length}개를 분석합니다. 제목·공개 RSS 설명과 비교할 공개 사업명 후보만 전송하며 API 사용량이 발생할 수 있습니다. 본문·사내 링크·스크랩 메모는 전송하지 않습니다.`));
     articles.forEach(a=>content.append(link(a.title,a.url,'ai-source-link')));
     const consent=el('input');consent.type='checkbox';const status=el('p','form-error');status.setAttribute('role','status');
-    const action=button('공개 기사 분석 실행','button primary',async()=>{action.disabled=true;status.textContent='AI가 공개 기사 근거와 동향을 분석하고 있습니다. 중복 재요청하지 마세요.';try{const response=await api(classify?'/api/ai/classify':'/api/ai/analyse',{article_ids:articles.map(a=>a.id),consent_public_metadata:true}),r=response.data||response;await load();if(!['completed','cached'].includes(r.status))throw Error(r.error?.message||'분석이 완료되지 않았습니다.');$('#modal').close();if(classify){const rr=await api('/api/ai/run?run_id='+encodeURIComponent(r.run_id));showAIResults(rr.data||rr);}toast(r.status==='cached'?'저장된 동일 입력의 분석을 재사용했습니다.':'기사 근거와 동향 분석을 저장했습니다.');}catch(e){status.textContent=e.message;}finally{action.disabled=!consent.checked||!articles.length;}});action.disabled=true;
+    const action=button('공개 기사 분석 실행','button primary',async()=>{action.disabled=true;status.textContent='AI가 공개 기사 근거와 동향을 분석하고 있습니다. 중복 재요청하지 마세요.';try{const response=await api(classify?'/api/ai/classify':'/api/ai/analyse',{article_ids:articles.map(a=>a.id),consent_public_metadata:true}),r=response.data||response;await load();if(!['completed','cached'].includes(r.status))throw Error(r.error?.message||'분석이 완료되지 않았습니다.');$('#modal').close();if(classify){const rr=await api('/api/ai/run?run_id='+encodeURIComponent(r.run_id),undefined,'GET');showAIResults(rr.data||rr);}toast(r.status==='cached'?'저장된 동일 입력의 분석을 재사용했습니다.':'기사 근거와 동향 분석을 저장했습니다.');}catch(e){status.textContent=e.message;}finally{action.disabled=!consent.checked||!articles.length;}});action.disabled=true;
     consent.addEventListener('change',()=>{action.disabled=!consent.checked||!articles.length;});add(content,add(el('label','switch-label'),consent,document.createTextNode('위 공개 자료의 전송과 API 사용량 발생을 확인했습니다.')),status,action);modal(classify?'미분류 기사 후보 분석 범위':'AI 분석 범위 확인',content);
   }
   async function projectIdentityWorkspace(){const r=await api('/api/project-identities?include_all=true',undefined,'GET');return r.data||r;}
+  async function openAICleanup(mode='classify',initialRunId=null){
+    if(!window.AtlasAICleanup){toast('AI 정리 화면을 불러오지 못했습니다. 페이지를 새로고침하세요.',true);return;}
+    const host=el('div');host.append(el('p','muted','저장된 후보와 확인 이력을 준비합니다. AI 호출이나 읽음 처리는 실행하지 않습니다.'));modal('AI 자료 정리 · 원본 보존',host);
+    const request=async(path,payload,method)=>{const r=await api(path,payload,method);return r.data||r;};
+    const workspace=()=>request('/api/ai/cleanup?'+newsParams(),undefined,'GET');
+    const save=path=>async payload=>{await request(path,payload);await load();};
+    try{window.AtlasAICleanup.mount(host,{workspace:await workspace(),mode,initialRunId,connection:S.data?.ai?.connection||{},articles:nitems('articles'),selectedArticleIds:[...S.selectedArticles],
+      loadWorkspace:workspace,loadRun:id=>request('/api/ai/run?run_id='+encodeURIComponent(id),undefined,'GET'),
+      preview:(kind,payload)=>request(kind==='company'?'/api/ai/company-identity-preview':'/api/ai/classify-preview',payload),
+      analyse:(kind,payload)=>request(kind==='company'?'/api/ai/company-identity':'/api/ai/classify',payload),
+      confirmScope:save('/api/ai/scope-decision'),undoScope:save('/api/ai/scope-decision'),
+      confirmProjectScope:save('/api/ai/project-scope-decision'),undoProjectScope:save('/api/ai/project-scope-decision'),
+      analyseProjects:()=>startAIAnalysis(false),
+      previewMerge:payload=>request('/api/company-identity/preview',payload),confirmMerge:save('/api/company-identity/confirm'),undoMerge:save('/api/company-identity/undo'),
+      openProjects:()=>openProjectIdentity(),openArticles:(ids,runId)=>{const content=el('div');content.append(button('← AI 정리로 돌아가기','button',()=>openAICleanup(mode,runId)),articleRefs(ids));modal('공개 기사 근거 · 선택은 읽음 아님',content);}});
+    }catch(e){host.replaceChildren(el('p','callout warning','AI 정리 기능이 실행 서버에 아직 적용되지 않았거나 후보 조회에 실패했습니다. 원본을 유지하고 정상 종료 후 최신 CMD로 다시 실행하세요.'));}
+  }
   function mountProjectIdentity(root,workspace,selection){
     if(!window.AtlasProjectIdentity)return;
     window.AtlasProjectIdentity.mount(root,{workspace,articles:arr('articles').filter(a=>a.mode==='live_metadata'&&!['private','internal'].includes(a.visibility)).map(a=>({id:a.id,title:a.title,publisher:a.publisher,published_at:a.published_at,url:a.url})),selection,
@@ -931,6 +952,7 @@
     }catch(e){host.replaceChildren(el('p','callout warning','대표 사업 연결 기능은 현재 서버에 아직 적용되지 않았거나 조회에 실패했습니다. 기존 자료는 유지됩니다.'));}
   }
   function showAIResults(run){
+    if(['classify','company_identity'].includes(run.task)){openAICleanup(run.task==='classify'?'classify':'company',run.id);return;}
     const content=el('div');add(content,el('p','callout',`AI 후보 · ${run.article_ids.length}개 기사 표본 · ${run.model} · ${dateTime(run.finished_at)} · 본문 미확인 · 자동 병합 없음`));
     (run.result?.classifications||[]).forEach(item=>{const row=el('article','ai-extraction');add(row,el('strong','',`${scopeLabels[item.scope]||item.scope} · 분류 검토 후보`),el('p','',item.reason),el('blockquote','',item.quote||'분류 근거 부족 · 보류'),articleRefs([item.article_id]));content.append(row);});
     (run.result?.extractions||[]).forEach(item=>{const row=el('article','ai-extraction');add(row,el('strong','',`${item.project_name||item.company_name||item.kind} · ${item.value}`),el('p','muted',`${item.company_name||''} · ${companyRoleNames().find(r=>r.id===item.role)?.label||item.role} · 근거 연결 후보`),el('blockquote','',item.quote),articleRefs([item.article_id]));content.append(row);});
@@ -971,6 +993,7 @@
   function profileForm(settings){const p=settings.api||{};formShell('사내 AI 프로필 편집 · 연결 준비',grid=>{add(grid,el('p','callout warning field full','현재는 프로필 저장만 지원하며 사내 API 연결·분석 어댑터는 아직 구현되지 않았습니다. 공개 API 키 인증과 별도입니다. 인증/요청 형식만으로 연결 완료가 되지 않으며 응답 JSON 구조와 전송 보안 규약 확인이 필요합니다. 비밀키·직번 원문을 입력하지 마세요. 환경변수 참조명만 저장하며 이 저장은 API를 호출하지 않습니다.'));field(grid,'Endpoint','endpoint',p.endpoint||'','url',true);field(grid,'Protocol','protocol',p.protocol||'unconfigured');field(grid,'모델 이름','model',p.model||'');field(grid,'인증 방식','auth_type',p.auth_type||'bearer');field(grid,'Secret 참조명 · 환경변수 이름 등','secret_ref',p.secret_ref||'','text',true,'예: env:ATLAS_ENTERPRISE_TOKEN. 실제 키 값을 입력하지 마세요.');},async f=>{const data=Object.fromEntries(f.entries());if(data.endpoint&&!safeURL(data.endpoint))throw new Error('올바른 http 또는 https endpoint를 입력하세요.');if(data.secret_ref&&!/^env:[A-Z][A-Z0-9_]*$/.test(data.secret_ref))throw new Error('참조는 env:환경변수명 형식으로 입력하세요.');await mutate('/api/settings',{api:{...data,mode:'mock',verified:false}},'사내 AI 참조 프로필만 저장했습니다. 실제 연결·기사 분석은 실행하지 않았습니다.');});}
   $('#navigation').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)navigate(b.dataset.view);});$('.rail-bottom').addEventListener('click',()=>navigate('settings'));
   $('#aiConnect')?.addEventListener('click',()=>S.data?.ai?.connection?.connected?navigate('settings'):aiConnectForm());
+  $('#aiCleanup')?.addEventListener('click',()=>openAICleanup('classify'));
   $('#scopeTabs').addEventListener('click',e=>{const b=e.target.closest('[data-scope]');if(!b)return;S.scope=b.dataset.scope;S.mapSelection=null;S.dashboardArticleIds=null;S.dashboardRegionName='';S.selected=null;S.graphSelection=null;S.graphCluster=null;S.projectFocus=null;S.country='';S.city='';S.region='';S.ontologySelection=null;$$('[data-scope]').forEach(n=>{n.classList.toggle('active',n===b);n.setAttribute('aria-pressed',n===b?'true':'false');});load();});
   $('#includeRead').addEventListener('change',e=>{S.includeRead=e.target.checked;render();});
   $('#newsPeriod').addEventListener('change',e=>{S.period=e.target.value;load();});

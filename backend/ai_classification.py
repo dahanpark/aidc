@@ -94,8 +94,10 @@ def analyse(connection, payload):
         if not connection.status(ds)['connected']:
             raise ValueError('이 PC에서 AI를 연결한 뒤 분류 후보를 실행하세요.')
         input_data, sample = _prepare(ds, profile, payload)
+        from .ai_cleanup import article_stamp
+        source_stamps={aid:article_stamp(ds['articles'][aid]) for aid in sample['article_ids']}
         stamp = hashlib.sha256(json.dumps([VERSION, profile['provider'], profile['model'], SYSTEM, SCHEMA,
-            sample['max_output_tokens'], input_data], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+            sample['max_output_tokens'], input_data, source_stamps], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
         cached = next((run for run in ds.get('ai_runs', {}).values() if run.get('task') == 'classify' and
             run.get('input_hash') == stamp and run.get('status') == 'completed'), None)
         if cached:
@@ -108,6 +110,7 @@ def analyse(connection, payload):
         run = {'id': ident, 'task': 'classify', 'version': VERSION, 'created_at': now(), 'status': 'running',
                'provider': profile['provider'], 'model': profile['model'], 'input_hash': stamp,
                'article_ids': sample['article_ids'], 'input_snapshots': input_data['articles'],
+               'article_source_stamps': source_stamps,
                'input_preview': {k: v for k, v in sample.items() if k != 'articles'},
                'input_scope': 'title_and_public_rss_description', 'full_text_verified': False,
                'auto_apply': False, 'usage': None}

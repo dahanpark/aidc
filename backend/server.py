@@ -28,6 +28,7 @@ from .attention import build_attention, apply_acknowledgement
 from .projection_cache import ProjectionCache
 from .ai_connection import AIConnection
 from . import ai_analysis, strategy, strategy_analysis, ai_classification, project_identity, project_identity_view
+from . import ai_cleanup, ai_company_identity, company_identity_view
 
 
 class SnapshotIntegrityError(RuntimeError):
@@ -191,6 +192,8 @@ class AtlasApplication:
         names = ["projects", "companies", "articles", "claims", "relationships", "changes", "read_states",
                  "bookmarks", "internal_links", "notifications", "jobs", "coverage", "extraction_runs", "news_updates", "news_read_states"]
         data = {name: list(datasets.get(name, {}).values()) for name in names}
+        effective_snapshot=ai_cleanup.project_scope_snapshot(snapshot)
+        data['projects']=list(effective_snapshot['datasets'].get('projects',{}).values())
         from .company_profiles import profile_fields
         data['companies'] = [{**item, **profile_fields(item, datasets.get('company_classifications', {}).get(item['id']))} for item in data['companies']]
         data["settings"] = datasets.get("settings", {}).get("app", {})
@@ -204,11 +207,15 @@ class AtlasApplication:
             raise ValueError('잘못된 관계도 기업 선택입니다.')
         known_companies = set(datasets.get('companies', {})) | {item['id'] for item in data['company_catalog']['companies']}
         focus_company = focus_company.strip() if focus_company.strip() in known_companies else None
-        data['ontology'] = build_ontology(snapshot,data['news'], focus_company_id=focus_company)
+        identity_map=ai_cleanup.company_map(datasets)
+        canonical=identity_map.get(focus_company,focus_company)
+        focus_ids=[cid for cid,target in identity_map.items() if target==canonical] if focus_company else None
+        data['ontology'] = build_ontology(effective_snapshot,data['news'], focus_company_id=canonical, focus_company_ids=focus_ids)
         data['attention'] = build_attention(snapshot,data['news'])
         data['strategy'] = strategy.workspace(datasets, [a['id'] for a in data['news']['articles']])
         data['ai'] = {'connection': ai_status,
                       **ai_analysis.workspace(datasets, [a['id'] for a in data['news']['articles']])}
+        data['ai_cleanup'] = ai_cleanup.workspace(datasets,filters)
         from .geo import build_map_workspace
         visual = data['settings'].get('visualization',{})
         map_workspace = {**data['news'], 'ontology':data['ontology']}
@@ -226,6 +233,7 @@ class AtlasApplication:
                                       "json_persistence": True, "internal_fetch": False,
                                       "backup_restore": True, "exports": True}})
         data = project_identity_view.apply(data, data['project_identity'])
+        data = company_identity_view.apply(data,datasets)
         response = {"data": data, "snapshot_id": snapshot["generation"], "as_of": snapshot["as_of"],
                     "csrf_token": self.csrf, "warnings": [self.repo.recovery_notice] if self.repo.recovery_notice else []}
         self._workspace_cache.put(cache_key, response)
@@ -452,6 +460,24 @@ class AtlasApplication:
             return ai_classification.preview(self.ai, payload)
         if operation == 'ai/classify':
             return ai_classification.analyse(self.ai, payload)
+        if operation == 'ai/company-identity-preview':
+            return ai_company_identity.preview(self.ai,payload)
+        if operation == 'ai/company-identity':
+            return ai_company_identity.analyse(self.ai,payload)
+        if operation == 'ai/scope-decision':
+            self.repo.transact(lambda ds:ai_cleanup.scope_decide(ds,payload))
+            return {'status':'saved'}
+        if operation == 'ai/project-scope-decision':
+            self.repo.transact(lambda ds:ai_cleanup.project_scope_decide(ds,payload))
+            return {'status':'saved'}
+        if operation == 'company-identity/preview':
+            return ai_cleanup.company_preview(self.view_snapshot()['datasets'],payload)
+        if operation == 'company-identity/confirm':
+            self.repo.transact(lambda ds:ai_cleanup.company_confirm(ds,payload))
+            return {'status':'saved'}
+        if operation == 'company-identity/undo':
+            self.repo.transact(lambda ds:ai_cleanup.company_undo(ds,payload))
+            return {'status':'saved'}
         if operation == 'ai/preview':
             ds = self.view_snapshot()['datasets']
             ids = payload.get('article_ids')
@@ -685,6 +711,8 @@ def make_server(app, port=8765):
                     if not run:
                         raise ValueError('분석 결과를 찾을 수 없습니다.')
                     self._json({'data': run})
+                elif path == '/api/ai/cleanup':
+                    self._json({'data':ai_cleanup.workspace(app.view_snapshot()['datasets'],filters)})
                 elif path == '/api/strategy':
                     query = parse_qs(parsed.query)
                     snap = app.view_snapshot()
@@ -708,7 +736,8 @@ def make_server(app, port=8765):
                     self._json({'snapshot_id': pointer['generation'], 'version': __version__})
                 elif path == '/api/news':
                     snap = app.view_snapshot()
-                    self._json({'data':news.build_workspace(snap,filters),'snapshot_id':snap['generation'],'as_of':snap['as_of'],'warnings':[]})
+                    projected=company_identity_view.apply({'news':news.build_workspace(snap,filters)},snap['datasets'])['news']
+                    self._json({'data':projected,'snapshot_id':snap['generation'],'as_of':snap['as_of'],'warnings':[]})
                 elif path == "/api/export":
                     query = parse_qs(parsed.query, keep_blank_values=True)
                     pids = [x for x in query["project_ids"][0].split(",") if x] if "project_ids" in query else None
@@ -722,7 +751,8 @@ def make_server(app, port=8765):
                     if kind in ('news-report','news-csv'):
                         from .news_reports import export_workspace
                         snap = app.repo.snapshot()
-                        raw,mime,filename = export_workspace(news.build_workspace(snap,filters),kind,snap['generation'])
+                        projected=company_identity_view.apply({'news':news.build_workspace(snap,filters)},snap['datasets'])['news']
+                        raw,mime,filename = export_workspace(projected,kind,snap['generation'])
                     else:
                         raw, mime, filename = reports.export(app.repo.snapshot(),kind, pids, aids, charter)
                     self._send(raw, mime, filename=filename)

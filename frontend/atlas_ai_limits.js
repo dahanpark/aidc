@@ -7,7 +7,7 @@
     ['max_output_tokens', '출력 토큰 상한', 1200, 300, 4000],
     ['article_text_chars', '기사별 문자 상한', 1200, 200, 2400]
   ];
-  const tasks = [['extract', '공개 기사 근거 후보 추출'], ['compare', '유사 사업 비교'], ['briefing', '최신 동향 요약'], ['classify', '미분류 근거 점검'], ['strategy', '전략표 선택 셀 요약']];
+  const tasks = [['extract', '공개 기사 근거 후보 추출'], ['compare', '유사 사업·기업 비교'], ['briefing', '최신 동향 요약'], ['classify', '미분류 근거 점검'], ['strategy', '전략표 선택 셀 요약']];
   function mount(root, options = {}) {
     const doc = root.ownerDocument || global.document;
     let profile = options.profile || {}, busy = false, error = '', notice = '';

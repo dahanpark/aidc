@@ -80,7 +80,7 @@ def _project_visible(project, filters):
     return True
 
 
-def _company_graph(companies, projects, pending_groups, article_refs, ordered, focus_company_id=None):
+def _company_graph(companies, projects, pending_groups, article_refs, ordered, focus_company_id=None, focus_company_ids=None):
     """Company -> topic/project/article-bucket graph with evidence on every edge."""
     nodes, edges, keywords = {}, [], {}
     project_index = {item['id']: item for item in projects}
@@ -180,14 +180,17 @@ def _company_graph(companies, projects, pending_groups, article_refs, ordered, f
     priority = {'role': 0, 'company': 1, 'keyword': 2, 'project': 3, 'pending': 4}
     all_nodes.sort(key=lambda item: (priority[item['type']], -item['article_count'], item['id']))
     focus_id = 'company:' + focus_company_id if focus_company_id else None
-    focus_present = bool(focus_id and focus_id in nodes)
+    focus_ids={'company:'+cid for cid in (focus_company_ids or ([focus_company_id] if focus_company_id else []))}
+    present_focus_ids=focus_ids.intersection(nodes)
+    focus_present = bool(present_focus_ids)
     neighbors = set()
     if focus_present:
         for item in edges:
-            if item['source'] == focus_id:
+            if item['source'] in present_focus_ids:
                 neighbors.add(item['target'])
-            elif item['target'] == focus_id:
+            if item['target'] in present_focus_ids:
                 neighbors.add(item['source'])
+        neighbors.difference_update(present_focus_ids)
     # A company picked from the complete catalogue must survive display limits,
     # along with its own one-hop evidence. This changes presentation priority only.
     if focus_id and not focus_present:
@@ -196,7 +199,7 @@ def _company_graph(companies, projects, pending_groups, article_refs, ordered, f
             for item in all_nodes if item['type'] == 'role']
     elif focus_present:
         focus_priority = {'keyword': 0, 'project': 1, 'pending': 2, 'company': 3, 'role': 4}
-        selected_nodes = [item for item in all_nodes if item['type'] == 'role'] + [nodes[focus_id]]
+        selected_nodes = [item for item in all_nodes if item['type'] == 'role'] + [nodes[nid] for nid in sorted(present_focus_ids)]
         selected_ids = {item['id'] for item in selected_nodes}
         focused_nodes = [item for item in all_nodes if item['id'] in neighbors and item['id'] not in selected_ids]
         focused_nodes.sort(key=lambda item: (focus_priority[item['type']], -item['article_count'], item['id']))
@@ -229,7 +232,7 @@ def _company_graph(companies, projects, pending_groups, article_refs, ordered, f
         'counting_note': '기업별 기사와 역할은 서로 중복될 수 있습니다. 역할은 명시된 사업·근거 기사에 한정되며 키워드 연결은 계약 관계나 기업 전문 분야를 뜻하지 않습니다.'}
 
 
-def build_ontology(snapshot, workspace, *, focus_company_id=None):
+def build_ontology(snapshot, workspace, *, focus_company_id=None, focus_company_ids=None):
     """Aggregate exactly the selected relevant articles; never mutate inputs.
 
     Unidentified article groups are observation buckets, not inferred businesses.
@@ -501,7 +504,7 @@ def build_ontology(snapshot, workspace, *, focus_company_id=None):
                         'article_ids': ordered(pending_article_ids), 'basis': 'project_identity_unresolved'})
     attention = build_attention(snapshot, workspace)
     attention_index = {item['id']: item for item in attention['items']}
-    company_ontology = _company_graph(company_entries, projects, pending_groups, article_refs, ordered, focus_company_id)
+    company_ontology = _company_graph(company_entries, projects, pending_groups, article_refs, ordered, focus_company_id, focus_company_ids)
 
     def annotate(item):
         kind = item.get('type')
