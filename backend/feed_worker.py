@@ -1,8 +1,10 @@
 """Disposable RSS-only process; no repository, credentials or inference access."""
 import base64
 import json
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from .network import NetworkError, error_info
 
@@ -14,6 +16,7 @@ CODES={'dns','network','timeout','tls','tls_certificate','connection','ca_bundle
 def fetch(url,timeout=DEADLINE_SECONDS):
     from .collector import validate_feed_url,MAX_BYTES
     validate_feed_url(url)
+    started=time.monotonic()
     try:
         result=subprocess.run([sys.executable,'-B','-m','backend.feed_worker'],
             input=json.dumps({'url':url}).encode(),stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
@@ -28,6 +31,11 @@ def fetch(url,timeout=DEADLINE_SECONDS):
         if not isinstance(response,dict):raise ValueError('invalid')
         if response.get('ok') is not True:
             code=response.get('code')
+            if code=='tls_certificate' and os.name=='nt':
+                from .windows_feed import fetch as windows_fetch
+                remaining=timeout-(time.monotonic()-started)
+                if remaining<=0:raise NetworkError('feed_deadline','RSS 요청 전체 시간 제한에 도달했습니다.')
+                return windows_fetch(url,remaining)
             raise NetworkError(code if code in CODES else 'feed_worker','RSS 연결을 확인하지 못했습니다. 오류 코드와 네트워크 진단을 확인하세요.')
         raw=base64.b64decode(response['body'],validate=True)
         if len(raw)>MAX_BYTES:raise ValueError('limit')

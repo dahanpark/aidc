@@ -11,7 +11,8 @@ Python 3.10 이상에서 저장소를 내려받아 다음 명령으로 실행합
 python run_atlas.py
 ```
 
-Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atlas.ps1`
+Windows에서는 ZIP 전체를 압축 해제한 뒤 루트의 **AIDC ATLAS.cmd**를 더블클릭하면 됩니다. 기존 서버 재사용·업데이트 확인·브라우저 열기는 공통 실행기를 사용합니다. 실패 시 CMD 창에서 안내를 확인할 수 있습니다.
+명령 실행: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atlas.ps1`
 주소는 기본 `http://127.0.0.1:8765/`입니다. Windows 바로가기는 `scripts/create_shortcut.ps1`로 생성할 수 있습니다.
 
 ## 메뉴
@@ -30,7 +31,7 @@ DASHBOARD 현황 아래 **동향 · 점검 요약**에서 선택/최신 공개 �
 
 SETTINGS에서 제공사/모델/인증 시각/호출량/연결 해제/키 삭제를 관리합니다. 환경변수 연결은 `ATLAS_AI_OPENAI_KEY`, `ATLAS_AI_ANTHROPIC_KEY`, `ATLAS_AI_GOOGLE_KEY`만 참조하며 선택 삭제는 해당 프로세스·Windows 사용자 변수에 한정됩니다. `.env` 파일·머신 변수·제공사 키 폐기는 별도입니다.
 
-회사망에서 실패하면 SETTINGS의 **사내망 수집 연결 진단**을 실행합니다. 시스템/환경 HTTPS 프록시와 회사 CA 추가 신뢰(`ATLAS_CA_BUNDLE`/`SSL_CERT_FILE`)를 지원합니다. TLS 검증은 유지합니다. PAC·통합인증·방화벽 정책은 IT 담당자의 `HTTPS_PROXY`/CA/도메인 허용 설정이 필요할 수 있습니다. 수집은 `news.google.com:443`, `www.datacenterdynamics.com:443`, AI는 선택한 제공사의 API 도메인을 사용합니다.
+회사망에서 실패하면 SETTINGS의 **사내망 수집 연결 진단**을 실행합니다. Windows에서는 Python 인증서 오류 시 Windows 기본 인증서·시스템 프록시 경로로 한 번 재시도하며 전체 RSS 제한20초와 TLS 검증을 유지합니다. Windows가 이미 신뢰하면 별도 CA 파일 없이 연결될 수 있습니다. 두 경로 모두 실패하면 PC 날짜·시간과 회사 CA/프록시·방화벽을 IT 담당자와 확인합니다. 회사 CA 추가 신뢰(`ATLAS_CA_BUNDLE`/`SSL_CERT_FILE`)도 지원합니다. 자동 자격 증명 전송·인증서 검증 해제·HTTP 전환은 하지 않습니다. 수집은 `news.google.com:443`, `www.datacenterdynamics.com:443`, AI는 선택한 제공사의 API 도메인을 사용합니다.
 
 정상 재기동의 중복 전체 읽기를 3회에서 1회로 줄이고 큰 저장소의 검증을 최대 8작업으로 나눕니다. 최초 업그레이드는 새 세대 활성화 전 전체 검증까지 2회를 유지합니다.
 

@@ -11,6 +11,7 @@
     "fixtures"
   ],
   "include_files": [
+    "AIDC ATLAS.cmd",
     "run_atlas.py",
     "config/news_sources.json",
     "config/company_profile_registry.json",
@@ -33,6 +34,7 @@
     ".json",
     ".csv",
     ".ps1",
+    ".cmd",
     ".geojson"
   ],
   "excluded_roots": [

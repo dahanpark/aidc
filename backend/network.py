@@ -140,4 +140,5 @@ def network_environment():
     return {'https_proxy_configured': bool(proxies.get('https')),
             'custom_ca_configured': bool(os.environ.get('ATLAS_CA_BUNDLE') or os.environ.get('SSL_CERT_FILE')),
             'pac_detected': pac, 'tls_verification': True,
-            'note': '시스템/환경 HTTPS 프록시 사용. PAC·통합인증은 자동 실행하지 않습니다. 필요 시 IT 부서가 HTTPS_PROXY와 회사 CA를 설정해야 합니다.'}
+            'windows_system_tls_retry': os.name == 'nt',
+            'note': '시스템/환경 HTTPS 프록시 사용. Windows에서는 Python 인증서 실패 시 Windows 기본 인증서·시스템 프록시 경로로 한 번 재시도합니다. 두 경로 합계 RSS 제한20초·TLS 검증 유지. Windows도 실패하면 PC 날짜·시간과 회사 CA/프록시를 IT 부서와 확인하세요. 통합인증을 자동 전송하지 않습니다.'}
