@@ -8,7 +8,7 @@ COUNTERS = ('request_count', 'completed_windows', 'total_windows', 'new_articles
             'uncertain_items', 'out_of_scope_items', 'rejected_items')
 ERROR_CODES = {'dns','network','timeout','tls','tls_certificate','connection',
                'ca_bundle_invalid','proxy_configuration','response_limit','feed_validation',
-               'worker_internal','worker_validation'} | {f'http_{n}' for n in range(100,600)}
+               'worker_internal','worker_validation','feed_deadline','feed_worker'} | {f'http_{n}' for n in range(100,600)}
 
 
 def worker_failure(error):
@@ -22,7 +22,7 @@ def worker_failure(error):
     return {'code':'worker_internal', 'message':'수집 처리 중 내부 오류가 발생했습니다. 원본과 작업 조건을 보존했습니다.'}
 
 
-def workspace(ds, *, worker_alive=False, lock_held=False):
+def workspace(ds, *, worker_alive=False, lock_held=False,progress=None):
     errors = Counter()
     for coverage in ds.get('news_coverage',{}).values():
         if coverage.get('status') == 'failed':
@@ -47,7 +47,9 @@ def workspace(ds, *, worker_alive=False, lock_held=False):
         else: result='no_results'
         job['result_code']=result
         jobs.append(job)
-    return {'checked_at':now(),'capability':'collection_diagnostics_v1',
+    progress=progress or {}
+    safe_progress={k:progress.get(k) for k in ('job_id','stage','updated_at','source_name','request_count','new_articles','completed_windows','total_windows','request_deadline_seconds')}
+    return {'checked_at':now(),'capability':'collection_diagnostics_v2','progress':safe_progress,
             'worker_alive':bool(worker_alive),'collection_lock_held':bool(lock_held),
             'environment':network_environment(),'jobs':jobs,'coverage_error_counts':dict(errors),
             'note':'상태 조회는 수집·저장·재시작을 실행하지 않습니다. 이 PC의 결과이며 다른 PC/회사망의 결과를 대신하지 않습니다.'}

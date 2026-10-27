@@ -82,10 +82,10 @@ class CollectionDiagnosticsHttpTests(unittest.TestCase):
             thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
             try:
                 before=(app.repo.root/'CURRENT.json').read_bytes()
-                with patch.object(app,'state',side_effect=AssertionError('graph should not build')):
+                with patch.object(app,'state',side_effect=AssertionError('graph should not build')),patch.object(app,'view_snapshot',side_effect=AssertionError('whole snapshot should not copy')):
                     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
                     with opener.open(f'http://127.0.0.1:{server.server_port}/api/collection/status',timeout=10) as f:d=json.load(f)['data']
-                self.assertEqual(d['capability'],'collection_diagnostics_v1')
+                self.assertEqual(d['capability'],'collection_diagnostics_v2')
                 self.assertEqual(before,(app.repo.root/'CURRENT.json').read_bytes())
             finally:
                 app.stop.set();server.shutdown();server.server_close();thread.join(timeout=3)

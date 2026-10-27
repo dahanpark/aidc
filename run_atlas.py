@@ -29,6 +29,8 @@ def main():
         print("AIDC ATLAS runtime OK; Python", sys.version.split()[0], "; fixture loaded")
         return
     identity = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:16]
+    from backend.build_info import runtime_build
+    expected_build = runtime_build(root)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     runtime = root / "runtime"
     runtime.mkdir(exist_ok=True)
@@ -58,6 +60,10 @@ def main():
                 health = json.load(response)
             if health.get("app") == "aidc-atlas" and health.get("identity") == identity:
                 url = f"http://127.0.0.1:{port}/"
+                outdated=health.get('build_id')!=expected_build
+                if outdated:
+                    url+='?update_required=1'
+                    print('AIDC ATLAS update pending: existing server uses older files. Preserve collection; close it normally when idle, then launch again.',flush=True)
                 if not args.no_browser:
                     webbrowser.open(url)
                 print("AIDC ATLAS already running:", url, flush=True)

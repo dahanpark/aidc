@@ -50,6 +50,20 @@ def _hash(value):
     return hashlib.sha256(value.encode('utf-8')).hexdigest()
 
 
+def validate_feed_url(url):
+    assert_safe_url(url)
+    parsed = urlsplit(url)
+    if not (parsed.scheme == 'https' and parsed.port in (None, 443) and
+            ((parsed.hostname == 'news.google.com' and parsed.path == '/rss/search') or
+             url in DIRECT_FEEDS)):
+        raise ValueError('수집 제공자 허용목록 밖의 요청입니다.')
+
+
+def fetch_public_feed_bounded(url):
+    from .feed_worker import fetch
+    return fetch(url)
+
+
 def fetch_public_feed(url):
     """Fixed endpoints only; DNS validated and connection pinned, no redirects.
 
@@ -57,12 +71,7 @@ def fetch_public_feed(url):
     A private answer among DNS records rejects the entire request. The socket uses
     the checked address, so a second DNS resolution cannot rebind the request.
     """
-    assert_safe_url(url)
-    parsed = urlsplit(url)
-    if not (parsed.scheme == 'https' and parsed.port in (None, 443) and
-            ((parsed.hostname == 'news.google.com' and parsed.path == '/rss/search') or
-             url in DIRECT_FEEDS)):
-        raise ValueError('수집 제공자 허용목록 밖의 요청입니다.')
+    validate_feed_url(url)
     return request_bytes(url, allowed_hosts={'news.google.com', 'www.datacenterdynamics.com'},
                          headers={'User-Agent':'AIDC-ATLAS/0.4 (local public RSS metadata reader)',
                                   'Accept':'application/rss+xml, application/xml;q=0.9'}, max_bytes=MAX_BYTES)
@@ -184,9 +193,9 @@ def _window(source_id, start, end, provider='google_news_search_rss', depth=0):
     return value
 
 
-def collect_news(repo, root, request, job_id=None, fetcher=None):
+def collect_news(repo, root, request, job_id=None, fetcher=None, progress=None):
     from .news import normalize_filters, enrich_articles, classify_article
-    fetcher = fetcher or fetch_public_feed
+    fetcher = fetcher or fetch_public_feed_bounded
     config = load_sources(root)
     request = dict(request)
     request.setdefault('period', config['defaults'].get('period', '3y'))
@@ -224,7 +233,7 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
         filters = job['filters']  # Resume at the original immutable as-of bounds.
         pending = list(job.get('pending_windows', []))
         failed = list(job.get('failed_windows', []))
-        pending += [w for w in failed if w.get('attempts',0) < 3]
+        pending = [w for w in failed if w.get('attempts',0) < 3] + pending
         job['failed_windows'] = [w for w in failed if w.get('attempts',0) >= 3]
     else:
         pending = []
@@ -246,6 +255,7 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
     for key in ('returned_items','parsed_items','relevant_items','uncertain_items','out_of_scope_items'):
         job.setdefault(key, 0)
     source_map = {s['source_id']:s for s in config['sources']}
+    job.pop('error_code',None)
     job.pop('cancel_requested', None)
     job.update(status='running', pending_windows=pending, updated_at=_now(), complete_coverage=False,
                limitations=['공개 검색 RSS는 비공식 제공자입니다. 모든 기사와 과거 확보율을 보장하지 않습니다.',
@@ -291,7 +301,13 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
     if old.get('signature'):
         repo.transact(lambda ds: ds.setdefault('news_jobs',{}).get(job_id,{}).pop('cancel_requested',None))
     save()
-    calls, received = 0, 0
+    calls, received, consecutive_errors = 0, 0, 0
+    network_blocked=False
+    def emit(stage,source=None):
+        if progress:progress({'job_id':job_id,'stage':stage,'updated_at':_now(),
+            'source_name':source.get('name') if source else None,
+            **{k:job.get(k,0) for k in ('request_count','new_articles','completed_windows','total_windows')},
+            'request_deadline_seconds':20})
     while pending and calls < max_requests and received < max_articles:
         if repo.snapshot()['datasets'].get('news_jobs', {}).get(job_id, {}).get('cancel_requested'):
             job['status'] = 'cancelled'
@@ -307,7 +323,9 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
                     'complete_coverage':False,'query_url':url,'source_name':source['name'],
                     'source_domain':source['domain'],'language':source['language']}
         try:
+            emit('requesting',source)
             raw = fetcher(url)
+            emit('parsing',source)
             articles, diagnostics = parse_feed(raw, source, window, _now())
             diagnostics.update(parsed=len(articles), relevant=0, uncertain=0, out_of_scope=0)
             accepted = []
@@ -349,6 +367,7 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
             job['completed_windows'] += 1
             coverage.update(status=status, **diagnostics, accepted=len(accepted), provider_cap=capped)
             articles = accepted
+            consecutive_errors=0
         except (OSError, ValueError, ET.ParseError, http.client.HTTPException) as error:
             detail = error_info(error) if not isinstance(error, (ValueError, ET.ParseError)) else {
                 'code': 'feed_validation', 'message': '공개 RSS 형식·제공사 허용목록 검증 실패'}
@@ -356,7 +375,14 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
             job['failed_windows'].append({**window,'error':type(error).__name__,'error_code':detail['code']})
             coverage.update(status='failed',error=type(error).__name__,error_code=detail['code'],error_message=detail['message'],accepted=0)
             save(coverage=coverage)
+            consecutive_errors+=1
+            job['error_code']=detail['code']
+            emit('source_error',source)
+            if consecutive_errors>=3 and detail['code'] in {'dns','timeout','feed_deadline','feed_worker','network','tls','tls_certificate','proxy_configuration','ca_bundle_invalid','http_403','http_407','http_429','feed_validation'}:
+                network_blocked=True
+                break
             continue
+        emit('saving',source)
         save(articles, coverage)
     # A stop may arrive while the last request is in flight. Keep that action
     # visible even when the response exhausted the queue in the same instant.
@@ -364,6 +390,8 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
         job['status'] = 'cancelled'
     if job['status'] == 'cancelled':
         pass
+    elif network_blocked:
+        job['status']='partial' if job['completed_windows'] else 'failed'
     elif pending:
         job['status'] = 'partial'
     elif job['failed_windows']:
@@ -377,6 +405,9 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
     job['retryable_failed_windows'] = sum(w.get('attempts', 0) < 3 for w in job['failed_windows'])
     if job['status'] == 'cancelled':
         job['stop_reason'] = 'user_cancelled'
+    elif network_blocked:
+        job['stop_reason']='network_blocked'
+        job['message']='연속 3회 수집 연결/응답 검증 실패로 일시 중지했습니다. 원본과 남은 구간을 보존했습니다. 네트워크 진단 후 재개하세요.'
     elif pending:
         job['stop_reason'] = 'article_limit' if received >= max_articles else 'request_limit'
     elif job['failed_windows']:
@@ -385,4 +416,5 @@ def collect_news(repo, root, request, job_id=None, fetcher=None):
         job['stop_reason'] = 'queue_exhausted'
     job['finished_at'] = _now()
     save()
+    emit(job['status'])
     return job

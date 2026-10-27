@@ -40,11 +40,14 @@ INTEGRITY_MESSAGE = '저장 자료 무결성 재검증에 실패했습니다. �
 class AtlasApplication:
     def __init__(self, root, store=None):
         self.root = Path(root).resolve()
+        from .build_info import runtime_build
+        self.build_id = runtime_build(self.root)
         self.csrf = secrets.token_urlsafe(32)
         self.identity = hashlib.sha256(str(self.root).encode("utf-8")).hexdigest()[:16]
         self.stop = threading.Event()
         self.collection_lock = threading.Lock()
         self.news_thread = None
+        self.collection_progress = {}
         self._view_lock = threading.Lock()
         self._view_snapshot = None
         self._view_pointer = None
@@ -291,7 +294,8 @@ class AtlasApplication:
             raise
         def run():
             try:
-                result = collector.collect_news(self.repo, self.root, request, job_id=job_id)
+                result = collector.collect_news(self.repo, self.root, request, job_id=job_id,
+                    progress=lambda value:setattr(self,'collection_progress',value))
                 def finish(target):
                     job = target['news_jobs'][job_id]
                     if job.get('status') in ('running','queued'):
@@ -306,6 +310,7 @@ class AtlasApplication:
                         stop_reason='worker_error', error_code=detail['code'],
                         message=detail['message'], can_resume=True)
                 self.repo.transact(failed)
+                self.collection_progress={'job_id':job_id,'stage':'failed','updated_at':now(),'error_code':detail['code']}
             finally:
                 self.collection_lock.release()
         self.news_thread = threading.Thread(target=run, name='atlas-news', daemon=True)
@@ -459,7 +464,7 @@ class AtlasApplication:
         if operation == 'ai/match-decision':
             return ai_analysis.decide_match(self.repo, payload)
         if operation == 'network/test':
-            from .collector import fetch_public_feed, GOOGLE
+            from .collector import fetch_public_feed_bounded as fetch_public_feed, GOOGLE
             from .network import network_environment, error_info
             results = []
             for name, url in [('Google News RSS', GOOGLE + '?q=AIDC&hl=ko&gl=KR&ceid=KR:ko'),
@@ -655,7 +660,7 @@ def make_server(app, port=8765):
                 path = unquote(parsed.path)
                 filters = {k:v[-1] for k,v in parse_qs(parsed.query,keep_blank_values=True).items()}
                 if path == "/api/health":
-                    self._json({"app": "aidc-atlas", "version": __version__, "identity": app.identity, "status": "ready"})
+                    self._json({"app": "aidc-atlas", "version": __version__, "identity": app.identity, "status": "ready",'build_id':app.build_id})
                 elif path == '/api/session':
                     # Launcher/shutdown must not build every graph just to get a token.
                     self._json({'app':'aidc-atlas', 'version':__version__, 'identity':app.identity, 'csrf_token':app.csrf})
@@ -663,9 +668,9 @@ def make_server(app, port=8765):
                     self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
                 elif path == '/api/collection/status':
                     from .collection_diagnostics import workspace
-                    self._json({'data':workspace(app.view_snapshot()['datasets'],
+                    self._json({'data':workspace(app._verified_view()['datasets'],
                         worker_alive=bool(app.news_thread and app.news_thread.is_alive()),
-                        lock_held=app.collection_lock.locked())})
+                        lock_held=app.collection_lock.locked(),progress=getattr(app,'collection_progress',{}))})
                 elif path == '/api/project-identities':
                     snap = app.view_snapshot()
                     query = parse_qs(parsed.query)

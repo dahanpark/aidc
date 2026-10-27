@@ -53,7 +53,7 @@ class NewsApiTests(transport.ApiTests):
         entered = threading.Event()
         release = threading.Event()
         captured = {}
-        def fake(repo, root, request, job_id=None):
+        def fake(repo, root, request, job_id=None,progress=None):
             captured.update(request)
             entered.set()
             release.wait(5)
@@ -102,7 +102,7 @@ class NewsApiTests(transport.ApiTests):
             return b'<rss><channel></channel></rss>'
         companies = self.app.repo.snapshot()['datasets']['companies']
         cid = next(cid for cid,c in companies.items() if c['name']=='Oracle')
-        with patch('backend.collector.fetch_public_feed',fetch):
+        with patch('backend.collector.fetch_public_feed_bounded',fetch):
             status,raw,_ = self.request('/api/news/search',{'period':'1d','company_id':cid,
                 'source_ids':['INT-M06'],'max_requests':1})
             self.assertEqual(status,200)

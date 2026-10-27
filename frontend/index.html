@@ -41,7 +41,7 @@
       <button id="newsSearch" class="button">검색</button>
       <details class="advanced-query"><summary>상세 검색·수집</summary><div>      <label><span>해외 · 나라</span><select id="newsCountry" aria-label="해외 나라"><option value="">전체 나라</option></select></label>
       <label><span>국내 · 도시</span><select id="newsCity" aria-label="국내 도시"><option value="">전체 도시</option></select></label>
-<button id="newsCollect" class="button primary">기간 기사 수집 ↻</button></div></details>
+<button id="newsCollect" class="button primary">기간 기사 수집 ↻</button></div></details><p id="collectionLiveStatus" class="callout" hidden></p>
       <div class="news-search-note" id="newsFilterNote">기간·범위·나라·도시는 기사 목록·종합 요약·통합표·내보내기에 함께 적용됩니다.</div>
     </section>
     </div>
@@ -53,5 +53,6 @@
 </div>
 <dialog id="modal" aria-labelledby="modalTitle"><div class="modal-head"><div><p class="eyebrow">AIDC ATLAS</p><h2 id="modalTitle"></h2></div><button id="modalClose" class="icon-button" aria-label="대화상자 닫기">✕</button></div><div id="modalContent"></div></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
-<script src="/atlas_graph.js" defer></script><script src="/atlas_map.js" defer></script><script src="/atlas_analysis.js" defer></script><script src="/atlas_workspaces.js" defer></script><script src="/atlas_workbench.js" defer></script><script src="/atlas_strategy.js" defer></script><script src="/atlas_ai_limits.js" defer></script><script src="/atlas_connection_status.js" defer></script><script src="/atlas_project_identity.js" defer></script><script src="/app.js" defer></script>
+<script src="/atlas_graph.js" defer></script><script src="/atlas_map.js" defer></script><script src="/atlas_analysis.js" defer></script><script src="/atlas_workspaces.js" defer></script><script src="/atlas_workbench.js" defer></script><script src="/atlas_strategy.js" defer></script><script src="/atlas_ai_limits.js" defer></script><script src="/atlas_connection_status.js" defer></script><script src="/atlas_project_identity.js" defer></script><script src="/atlas_collection_live.js"></script>
+<script src="/app.js" defer></script>
 </body></html>

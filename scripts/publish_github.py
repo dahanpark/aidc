@@ -14,15 +14,15 @@ import urllib.request
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
-AI_DOC_TAG = 'atlas-strategy-editor-documents-20261027'
-AI_DOC_VERSION = '2.7'
+AI_DOC_TAG = 'atlas-portable-feed-documents-20261027'
+AI_DOC_VERSION = '2.8'
 
 
 def ai_documentation_readme():
     base = f'https://github.com/dahanpark/aidc/releases/download/{AI_DOC_TAG}'
     return f'''## 최신 기획서·매뉴얼 · AI 분석 v{AI_DOC_VERSION}
 
-[AI 문서 릴리스](https://github.com/dahanpark/aidc/releases/tag/{AI_DOC_TAG})는 REV017의 Con. Status 기본 구성·항목별 AI 분석 기준·카테고리/회사/행 편집과 REV016의 수집 중단 진단·사내 API 계약 확인 경계와 REV015의 확인한 동일 사업 연결·별칭/기사/관계도 통합 표시와 PC별 AI·전략표를 설명합니다. 공개 기사 근거 추출·동일 사업 후보 비교·동향/점검 요약, PC별 키 등록·삭제, 전송 확인·공유 호출/입출력 한도·미분류 후보·건설사 전략 종합·A3 출력·실제 품질 검증 절차를 포함합니다. 실제 개인 API 품질·회사 PC·화면 인수 완료를 뜻하지 않습니다.
+[AI 문서 릴리스](https://github.com/dahanpark/aidc/releases/tag/{AI_DOC_TAG})는 REV018의 다른 PC 수집 시간 제한·경량 진행·실패 구간 재개·실행 버전 확인과 REV017의 Con. Status 기본 구성·항목별 AI 분석 기준·카테고리/회사/행 편집과 REV016의 수집 중단 진단·사내 API 계약 확인 경계와 REV015의 확인한 동일 사업 연결·별칭/기사/관계도 통합 표시와 PC별 AI·전략표를 설명합니다. 공개 기사 근거 추출·동일 사업 후보 비교·동향/점검 요약, PC별 키 등록·삭제, 전송 확인·공유 호출/입출력 한도·미분류 후보·건설사 전략 종합·A3 출력·실제 품질 검증 절차를 포함합니다. 실제 개인 API 품질·회사 PC·화면 인수 완료를 뜻하지 않습니다.
 
 |최신 자료|다운로드|
 |---|---|

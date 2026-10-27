@@ -36,15 +36,15 @@ SETTINGS에서 제공사/모델/인증 시각/호출량/연결 해제/키 삭제
 
 스크랩은 한 번 클릭으로 저장하고 SCRAP에서 기사 필터와 무관하게 전체 저장분을 확인합니다. 신규 기사 표시 기본 30일은 SETTINGS에서 변경하며, 관계도 배지 팝업에서 원문과 정확한 기사 확인 버튼을 사용합니다. 기존 미확인 알림은 보존합니다.
 
-## 최신 기획서·매뉴얼 · AI 분석 v2.7
+## 최신 기획서·매뉴얼 · AI 분석 v2.8
 
-[AI 문서 릴리스](https://github.com/dahanpark/aidc/releases/tag/atlas-strategy-editor-documents-20261027)는 REV017의 Con. Status 기본 구성·항목별 AI 분석 기준·카테고리/회사/행 편집과 REV016의 수집 중단 진단·사내 API 계약 확인 경계와 REV015의 확인한 동일 사업 연결·별칭/기사/관계도 통합 표시와 PC별 AI·전략표를 설명합니다. 공개 기사 근거 추출·동일 사업 후보 비교·동향/점검 요약, PC별 키 등록·삭제, 전송 확인·공유 호출/입출력 한도·미분류 후보·건설사 전략 종합·A3 출력·실제 품질 검증 절차를 포함합니다. 실제 개인 API 품질·회사 PC·화면 인수 완료를 뜻하지 않습니다.
+[AI 문서 릴리스](https://github.com/dahanpark/aidc/releases/tag/atlas-portable-feed-documents-20261027)는 REV018의 다른 PC 수집 시간 제한·경량 진행·실패 구간 재개·실행 버전 확인과 REV017의 Con. Status 기본 구성·항목별 AI 분석 기준·카테고리/회사/행 편집과 REV016의 수집 중단 진단·사내 API 계약 확인 경계와 REV015의 확인한 동일 사업 연결·별칭/기사/관계도 통합 표시와 PC별 AI·전략표를 설명합니다. 공개 기사 근거 추출·동일 사업 후보 비교·동향/점검 요약, PC별 키 등록·삭제, 전송 확인·공유 호출/입출력 한도·미분류 후보·건설사 전략 종합·A3 출력·실제 품질 검증 절차를 포함합니다. 실제 개인 API 품질·회사 PC·화면 인수 완료를 뜻하지 않습니다.
 
 |최신 자료|다운로드|
 |---|---|
-|세부 개발 기획서 v2.7|[DEVELOPMENT_PLAN.md](https://github.com/dahanpark/aidc/releases/download/atlas-strategy-editor-documents-20261027/DEVELOPMENT_PLAN.md)|
-|사용자 매뉴얼 v2.7|[USER_MANUAL.html](https://github.com/dahanpark/aidc/releases/download/atlas-strategy-editor-documents-20261027/USER_MANUAL.html) · [USER_MANUAL.md](https://github.com/dahanpark/aidc/releases/download/atlas-strategy-editor-documents-20261027/USER_MANUAL.md)|
-|파일 안내·SHA256|[README.TXT](https://github.com/dahanpark/aidc/releases/download/atlas-strategy-editor-documents-20261027/README.TXT) · [DELIVERABLES.json](https://github.com/dahanpark/aidc/releases/download/atlas-strategy-editor-documents-20261027/DELIVERABLES.json)|
+|세부 개발 기획서 v2.8|[DEVELOPMENT_PLAN.md](https://github.com/dahanpark/aidc/releases/download/atlas-portable-feed-documents-20261027/DEVELOPMENT_PLAN.md)|
+|사용자 매뉴얼 v2.8|[USER_MANUAL.html](https://github.com/dahanpark/aidc/releases/download/atlas-portable-feed-documents-20261027/USER_MANUAL.html) · [USER_MANUAL.md](https://github.com/dahanpark/aidc/releases/download/atlas-portable-feed-documents-20261027/USER_MANUAL.md)|
+|파일 안내·SHA256|[README.TXT](https://github.com/dahanpark/aidc/releases/download/atlas-portable-feed-documents-20261027/README.TXT) · [DELIVERABLES.json](https://github.com/dahanpark/aidc/releases/download/atlas-portable-feed-documents-20261027/DELIVERABLES.json)|
 
 키는 프로그램의 **AI 연결**에서 Windows 보안 저장소에 등록합니다. `.env` 자동 생성·읽기는 지원하지 않습니다. AI 미연결 기능은 유지하며 분석은 표본/사용량 확인 후 명시 실행합니다. 아래 기존 문서·발표·스킬·시연·ZIP 릴리스는 과거 버전으로 보존합니다.
 
@@ -83,7 +83,7 @@ python -B run_atlas.py --check
 python -B -m unittest discover -s tests
 ```
 
-소스 REV: **REV017**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
+소스 REV: **REV018**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
 공개본은 별도 Git 이력이며 로컬 전체 Git 객체를 전송하지 않습니다. 로컬 폴더·과거 검증 결과에 의존하는 일부 운영 검증 스크립트는 공개본에서 사용할 수 없습니다.
 
 자동 소스 공개 범위는 `config/publication.json`에 명시합니다. 위 산출물은 사용자가 별도로 공개를 지시한 파일만 릴리스에 첨부했습니다. 그 밖의 업무 자료·개발 인계·의사결정 문서와 로컬 REV 대장은 전송하지 않습니다.
