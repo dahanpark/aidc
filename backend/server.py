@@ -34,6 +34,10 @@ from . import ai_cleanup, ai_company_identity, company_identity_view
 class SnapshotIntegrityError(RuntimeError):
     """A failed strict validation must be visible without exposing record data."""
 
+    def __init__(self, message, code='store_integrity_error'):
+        super().__init__(message)
+        self.code = code
+
 
 INTEGRITY_MESSAGE = '저장 자료 무결성 재검증에 실패했습니다. 마지막 정상 화면을 유지합니다. 원본 점검 또는 검증된 백업 복구가 필요합니다.'
 
@@ -54,6 +58,7 @@ class AtlasApplication:
         self._view_pointer = None
         self._view_checked_at = 0
         self._view_error_pointer = None
+        self._view_issue = None
         self._view_validator = None
         self._view_refresh_lock = threading.Lock()
         self._workspace_cache = ProjectionCache()
@@ -96,13 +101,67 @@ class AtlasApplication:
             self._view_pointer = bytes(pointer)
             self._view_checked_at = time.monotonic()
             self._view_error_pointer = None
+            self._view_issue = None
         return True
+
+    def _record_view_failure(self, pointer, error):
+        # I/O/resource failures do not prove corrupt JSON. All failures remain
+        # fail-closed, but the UI must distinguish an unreadable store from a
+        # checksum/schema/reference failure. Never persist exception text.
+        code = ('store_read_unavailable' if isinstance(error, OSError) else
+                'store_validation_unavailable' if not isinstance(error, (ValueError, KeyError, TypeError)) else
+                'store_integrity_error')
+        with self._view_lock:
+            try:
+                if (self.repo.root / 'CURRENT.json').read_bytes() != pointer:
+                    return
+            except OSError:
+                pass
+            self._view_error_pointer = pointer
+            self._view_issue = {'code':code, 'error_type':type(error).__name__, 'checked_at':now()}
+
+    def _view_failure(self):
+        issue = self._view_issue or {}
+        code = issue.get('code', 'store_integrity_error')
+        message = (INTEGRITY_MESSAGE if code == 'store_integrity_error' else
+                   '저장 자료를 읽거나 검증하지 못했습니다. 손상 여부는 미확인입니다. 마지막 정상 화면을 유지하며 저장 자료 다시 검사를 실행할 수 있습니다.')
+        return SnapshotIntegrityError(message, code)
+
+    def integrity_status(self):
+        try:
+            current = self._read_view_pointer()
+        except SnapshotIntegrityError:
+            return {'status':'failed', 'issue':{'code':'store_read_unavailable','error_type':'OSError'},
+                    'verified_generation':None, 'store_modified':False}
+        with self._view_lock:
+            worker = self._view_validator
+            return {'status':'checking' if worker and worker.is_alive() else
+                    'failed' if self._view_error_pointer == current else
+                    'unverified' if self._view_pointer != current else 'verified',
+                    'issue':copy.deepcopy(self._view_issue),
+                    'verified_generation':(self._view_snapshot or {}).get('generation'),
+                    'store_modified':False}
+
+    def recheck_integrity(self):
+        pointer = self._read_view_pointer()
+        with self._view_lock:
+            if self._view_validator and self._view_validator.is_alive():
+                return {'status':'checking', 'already_running':True, 'store_modified':False}
+            if self.stop.is_set():
+                raise ValueError('서버 종료 중에는 검사를 시작할 수 없습니다.')
+            worker = threading.Thread(target=self._validate_view_background, args=(pointer,),
+                                      name='atlas-integrity-recheck', daemon=True)
+            self._view_validator = worker
+            # Start under the small cache lock so concurrent clicks cannot
+            # replace a worker before is_alive() becomes true.
+            worker.start()
+        return {'status':'checking', 'already_running':False, 'store_modified':False}
 
     def _read_view_pointer(self):
         try:
             return (self.repo.root / 'CURRENT.json').read_bytes()
         except OSError as error:
-            raise SnapshotIntegrityError(INTEGRITY_MESSAGE) from error
+            raise SnapshotIntegrityError('저장 세대 파일을 읽지 못했습니다. 손상 여부는 미확인입니다. 저장 자료 다시 검사를 실행하십시오.', 'store_read_unavailable') from error
 
     def _validate_view_background(self, pointer):
         try:
@@ -112,15 +171,8 @@ class AtlasApplication:
             # Publication repeats the exact CURRENT check, so an old validator
             # can never overwrite a newer internal commit or external generation.
             self._publish_view_snapshot(verified, pointer)
-        except Exception:
-            with self._view_lock:
-                if self._view_pointer == pointer:
-                    try:
-                        current_matches = self._read_view_pointer() == pointer
-                    except SnapshotIntegrityError:
-                        current_matches = True
-                    if current_matches:
-                        self._view_error_pointer = pointer
+        except Exception as error:
+            self._record_view_failure(pointer, error)
         finally:
             with self._view_lock:
                 if self._view_validator is threading.current_thread():
@@ -132,7 +184,7 @@ class AtlasApplication:
         validator = None
         with self._view_lock:
             if self._view_error_pointer == pointer:
-                raise SnapshotIntegrityError(INTEGRITY_MESSAGE)
+                raise self._view_failure()
             cached = self._view_snapshot if pointer == self._view_pointer else None
             if cached is not None and time.monotonic() - self._view_checked_at > 20 and self._view_validator is None and not self.stop.is_set():
                 validator = threading.Thread(target=self._validate_view_background, args=(pointer,),
@@ -150,7 +202,7 @@ class AtlasApplication:
                 pointer = self._read_view_pointer()
                 with self._view_lock:
                     if self._view_error_pointer == pointer:
-                        raise SnapshotIntegrityError(INTEGRITY_MESSAGE)
+                        raise self._view_failure()
                     cached = self._view_snapshot if pointer == self._view_pointer else None
                 if cached is not None:
                     return cached
@@ -159,10 +211,8 @@ class AtlasApplication:
                     if self._publish_view_snapshot(verified, pointer):
                         return verified
                 except Exception as error:
-                    with self._view_lock:
-                        if self._read_view_pointer() == pointer:
-                            self._view_error_pointer = pointer
-                    raise SnapshotIntegrityError(INTEGRITY_MESSAGE) from error
+                    self._record_view_failure(pointer, error)
+                    raise self._view_failure() from error
         raise SnapshotIntegrityError('저장 세대가 변경 중입니다. 잠시 후 다시 조회하십시오.')
 
     def view_snapshot(self):
@@ -395,6 +445,8 @@ class AtlasApplication:
         return {"status": "rebuilt", "records": len(index["records"]), "generation": snap["generation"]}
 
     def mutate(self, operation, payload):
+        if operation == 'integrity/recheck':
+            return self.recheck_integrity()
         if operation == 'company-classification':
             from .company_classifications import apply_company_classification
             response = {}
@@ -690,6 +742,8 @@ def make_server(app, port=8765):
                 elif path == '/api/session':
                     # Launcher/shutdown must not build every graph just to get a token.
                     self._json({'app':'aidc-atlas', 'version':__version__, 'identity':app.identity, 'csrf_token':app.csrf})
+                elif path == '/api/integrity/status':
+                    self._json({'data':app.integrity_status()})
                 elif path == '/api/ai/status':
                     self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
                 elif path == '/api/collection/status':
@@ -731,7 +785,7 @@ def make_server(app, port=8765):
                     raw_pointer = app._read_view_pointer()
                     with app._view_lock:
                         if app._view_error_pointer == raw_pointer:
-                            raise SnapshotIntegrityError(INTEGRITY_MESSAGE)
+                            raise app._view_failure()
                     pointer = loads(raw_pointer)
                     self._json({'snapshot_id': pointer['generation'], 'version': __version__})
                 elif path == '/api/news':
@@ -776,8 +830,8 @@ def make_server(app, port=8765):
                     mime = {".js": "text/javascript", ".css": "text/css", ".html": "text/html", ".svg": "image/svg+xml",
                             '.json':'application/json','.geojson':'application/geo+json'}.get(target.suffix, "application/octet-stream")
                     self._send(target.read_bytes(), mime + "; charset=utf-8")
-            except SnapshotIntegrityError:
-                self._json({'error': INTEGRITY_MESSAGE, 'code': 'store_integrity_error', 'preserve_last_view': True}, 503)
+            except SnapshotIntegrityError as error:
+                self._json({'error':str(error), 'code':error.code, 'preserve_last_view':True}, 503)
             except (ValueError, KeyError, TypeError):
                 self._json({"error": "요청 형식을 확인하십시오."}, 400)
             except FileNotFoundError:
@@ -808,7 +862,7 @@ def make_server(app, port=8765):
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                     return
                 result = app.mutate(operation or path.removeprefix("/api/"), payload)
-                if requested_operation == 'network/test':
+                if requested_operation in ('network/test', 'integrity/recheck'):
                     # A connectivity test neither writes nor needs the JSON store.
                     self._json({'data': result, 'as_of': now(), 'warnings': []})
                     return

@@ -56,6 +56,25 @@
     if (!res.ok) throw new Error(text(response.error?.message || response.error || response.message, `요청 실패 (${res.status})`));
     return response;
   }
+  const integrityCodes=new Set(['store_integrity_error','store_read_unavailable','store_validation_unavailable']);
+  function integrityActions(code){const node=$('#integrityActions');if(node)node.hidden=!integrityCodes.has(code);}
+  async function recheckIntegrity(){
+    const action=$('#integrityRecheck'),status=$('#integrityStatus');if(action.disabled)return;action.disabled=true;
+    status.textContent='저장 자료 검사를 준비하고 있습니다. 원본을 수정하거나 AI를 호출하지 않습니다.';
+    try{
+      const session=await api('/api/session',undefined,'GET');S.token=session.csrf_token;
+      await api('/api/integrity/recheck',{});
+      const follow=async()=>{
+        try{
+          const result=await api('/api/integrity/status',undefined,'GET'),data=result.data;
+          if(data.status==='checking'){status.textContent='체크섬·참조를 검사 중입니다. 자료가 많으면 수 분 걸립니다. 중복 검사는 시작하지 않습니다.';setTimeout(follow,3000);return;}
+          action.disabled=false;
+          if(data.status==='verified'){status.textContent='저장 자료 검증을 통과했습니다. 화면을 다시 불러옵니다.';await load();}
+          else status.textContent=`검사 실패 · ${data.issue?.code||'store_integrity_error'} · ${data.issue?.error_type||'원인 미기록'}. 원본을 보존했습니다. 원본 점검 또는 검증된 백업 확인이 필요합니다.`;
+        }catch(error){action.disabled=false;status.textContent=`검사 상태 확인 실패: ${error.message} 다시 검사 버튼으로 상태를 확인할 수 있습니다.`;}
+      };await follow();
+    }catch(error){action.disabled=false;status.textContent=error.message;}
+  }
   async function load(initial = false) {
     clearTimeout(S.poll);clearTimeout(S.slowLoad);S.loadController?.abort();const controller=new AbortController();S.loadController=controller;S.loading=true;
     $('#loading').hidden=false;$('#loading').classList.toggle('is-refresh',Boolean(S.data));$('#loadingMessage').textContent=initial?'JSON 저장소에서 탐색 공간을 준비하고 있습니다.':'선택한 조건의 기사와 관계도를 준비하고 있습니다.';
@@ -73,7 +92,7 @@
       const identityMap=S.data.company_identity_map||{};
       for(const key of ['companyFocus','selectedCompany','newsCompany'])if(identityMap[S[key]])S[key]=identityMap[S[key]];
       if(S.graphSelection&&!S.graphSelection.node?.clustered_ids){const current=[...(S.data.ontology?.nodes||[]),...(S.data.ontology?.company_ontology?.nodes||[])].find(n=>n.id===S.graphSelection.id);const edge=[...(S.data.ontology?.edges||[]),...(S.data.ontology?.company_ontology?.edges||[])].find(e=>e.id===S.graphSelection.id);S.graphSelection=current?{kind:'node',id:current.id,node:current,article_ids:current.article_ids}:edge?{kind:'edge',id:edge.id,edge,article_ids:edge.article_ids}:null;}
-      S.integrityError=false;$('#errorBanner').hidden = true; $('#connection').replaceChildren(add(el('i')), document.createTextNode('로컬 저장소 연결'));
+      S.integrityError=false;integrityActions(null);$('#errorBanner').hidden = true; $('#connection').replaceChildren(add(el('i')), document.createTextNode('로컬 저장소 연결'));
       $('#snapshot').textContent = `JSON 원본 · 스냅샷 ${text(envelope.snapshot_id, '—')}`;
       $('#asof').textContent = `저장소 기준 ${date(envelope.as_of)}`;
       syncScopeCounts();
@@ -89,7 +108,7 @@
       if(request!==S.request)return;
       $('#connection').textContent = '로컬 연결 끊김';
       const message=error.name==='AbortError'?'자료 준비 시간이 길어 요청을 중단했습니다.':error.message;
-      S.integrityError=error.code==='store_integrity_error';$('#errorBanner').textContent = S.integrityError?message:`${message} AIDC ATLAS 바로가기로 서버를 열고 상단 새로고침을 누르세요.${S.data ? ' 마지막으로 읽은 화면을 유지합니다. 저장은 서버 연결 후 가능합니다.' : ''}`;
+      S.integrityError=integrityCodes.has(error.code);integrityActions(error.code);$('#errorBanner').textContent = S.integrityError?message:`${message} AIDC ATLAS 바로가기로 서버를 열고 상단 새로고침을 누르세요.${S.data ? ' 마지막으로 읽은 화면을 유지합니다. 저장은 서버 연결 후 가능합니다.' : ''}`;
       $('#errorBanner').hidden = false;
       scheduleNewsPoll();
     } finally { clearTimeout(timeout);if(request===S.request){clearTimeout(S.slowLoad);S.loading=false;$('#loading').hidden=true;$('#viewContainer').setAttribute('aria-busy','false');} }
@@ -726,7 +745,7 @@
       if(document.hidden||S.loading){scheduleNewsPoll();return;}
       try{
         const response=await fetch('/api/updates',{cache:'no-store'}),value=await response.json();
-        if(!response.ok){if(value.code==='store_integrity_error'){S.integrityError=true;$('#errorBanner').textContent=value.error;$('#errorBanner').hidden=false;$('#connection').textContent='저장 자료 무결성 점검 필요';}else throw Error('갱신 확인 실패');}
+        if(!response.ok){if(integrityCodes.has(value.code)){S.integrityError=true;integrityActions(value.code);$('#errorBanner').textContent=value.error;$('#errorBanner').hidden=false;$('#connection').textContent='저장 자료 점검 필요';}else throw Error('갱신 확인 실패');}
         else if((value.snapshot_id!==S.generation||S.integrityError)&&!S.loading){await load();return;}
       }catch{}
       scheduleNewsPoll();
@@ -1003,7 +1022,7 @@
   $('#newsQuery').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#newsSearch').click();}});
   $('#newsCollect').addEventListener('click',()=>{S.newsQuery=$('#newsQuery').value.trim();collectNews();});
   let searchTimer;$('#search').addEventListener('input',e=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{S.query=e.target.value.trim();S.newsQuery=S.query;$('#newsQuery').value=S.newsQuery;S.selected=null;load();},300);});
-  $('#refresh').addEventListener('click',()=>load());$('#importOpen').addEventListener('click',importForm);$('#exportOpen').addEventListener('click',exports);$('#modalClose').addEventListener('click',()=>$('#modal').close());
+  $('#refresh').addEventListener('click',()=>load());$('#integrityRecheck')?.addEventListener('click',recheckIntegrity);$('#importOpen').addEventListener('click',importForm);$('#exportOpen').addEventListener('click',exports);$('#modalClose').addEventListener('click',()=>$('#modal').close());
   $('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
   document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&!$('#modal').open){e.preventDefault();$('#search').focus();}});
   window.addEventListener('hashchange',()=>{const view=location.hash.slice(1);if(titles[view]&&S.view!==view)navigate(view);});

@@ -164,6 +164,74 @@ class ViewCacheTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.app.repo.snapshot()
 
+    def test_io_failure_is_fail_closed_without_claiming_json_corruption_or_leaking_details(self):
+        pointer=self.app._view_pointer
+        self.app._record_view_failure(pointer, PermissionError('PRIVATE secret record details'))
+        with self.assertRaises(SnapshotIntegrityError) as result:
+            self.app.view_snapshot()
+        self.assertEqual(result.exception.code,'store_read_unavailable')
+        self.assertNotIn('PRIVATE',str(self.app.integrity_status()))
+        self.assertEqual(self.app.integrity_status()['issue']['error_type'],'PermissionError')
+
+    def test_resource_failure_is_not_mislabeled_as_checksum_failure(self):
+        self.app._record_view_failure(self.app._view_pointer,MemoryError('PRIVATE'))
+        with self.assertRaises(SnapshotIntegrityError) as result:self.app.view_generation()
+        self.assertEqual(result.exception.code,'store_validation_unavailable')
+
+    def test_explicit_recheck_recovers_only_after_full_strict_read_without_writing_store(self):
+        pointer=(self.app.repo.root/'CURRENT.json').read_bytes()
+        self.app._record_view_failure(pointer,PermissionError('temporary'))
+        with patch.object(self.app.repo,'snapshot',wraps=self.app.repo.snapshot) as strict:
+            response=self.app.recheck_integrity();worker=self.app._view_validator
+            if worker:worker.join(timeout=4)
+            self.assertEqual(strict.call_count,1)
+        self.assertEqual(response['status'],'checking')
+        self.assertEqual(self.app.integrity_status()['status'],'verified')
+        self.assertEqual((self.app.repo.root/'CURRENT.json').read_bytes(),pointer)
+        self.assertIsNone(self.app._view_error_pointer)
+
+    def test_recheck_cannot_hide_real_corruption(self):
+        pointer=loads(self.app._view_pointer)
+        manifest=loads((self.app.repo.root/'generations'/pointer['generation']/'manifest.json').read_bytes())
+        record=next(iter(manifest['datasets']['projects'].values()))
+        filename=self.app.repo.root/'generations'/record.get('generation',pointer['generation'])/'projects'/record['file']
+        original=filename.read_bytes();filename.write_bytes(b'{}')
+        try:
+            self.app.recheck_integrity();worker=self.app._view_validator
+            if worker:worker.join(timeout=4)
+            self.assertEqual(self.app.integrity_status()['status'],'failed')
+            self.assertEqual(self.app.integrity_status()['issue']['code'],'store_integrity_error')
+            with self.assertRaises(SnapshotIntegrityError):self.app.view_snapshot()
+            self.assertEqual(filename.read_bytes(),b'{}')
+        finally:filename.write_bytes(original)
+
+    def test_double_recheck_joins_existing_worker_and_never_repeats_archive_read(self):
+        started,release=threading.Event(),threading.Event();strict=self.app.repo.snapshot
+        def delayed():
+            started.set();self.assertTrue(release.wait(5));return strict()
+        with patch.object(self.app.repo,'snapshot',side_effect=delayed) as reader:
+            try:
+                self.app.recheck_integrity();self.assertTrue(started.wait(2))
+                self.assertTrue(self.app.recheck_integrity()['already_running'])
+                self.assertEqual(self.app.integrity_status()['status'],'checking')
+                self.assertEqual(reader.call_count,1)
+            finally:
+                release.set();worker=self.app._view_validator
+                if worker:worker.join(timeout=4)
+
+    def test_recheck_status_does_not_scan_or_copy_the_archive(self):
+        self.app._record_view_failure(self.app._view_pointer,ValueError('PRIVATE'))
+        with patch.object(self.app.repo,'snapshot',side_effect=AssertionError('No status scan')):
+            self.assertEqual(self.app.integrity_status()['status'],'failed')
+
+    def test_external_generation_is_not_reported_verified_before_strict_read(self):
+        external=JsonRepository(self.app.repo.root)
+        external.transact(lambda ds:ds['settings']['app'].update(digest_hour=11))
+        self.assertEqual(self.app.integrity_status()['status'],'unverified')
+        self.app.recheck_integrity();worker=self.app._view_validator
+        if worker:worker.join(timeout=4)
+        self.assertEqual(self.app.integrity_status()['status'],'verified')
+
 
 if __name__ == '__main__':
     unittest.main()

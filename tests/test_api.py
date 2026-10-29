@@ -282,6 +282,28 @@ class ApiTests(unittest.TestCase):
             self.assertTrue(result['preserve_last_view'])
         self.assertEqual(self.request('/api/session')[0], 200)
 
+    def test_integrity_status_and_explicit_recheck_work_while_normal_reads_are_blocked(self):
+        self.app._record_view_failure(self.app._view_pointer,PermissionError('PRIVATE'))
+        status,raw,_=self.request('/api/updates')
+        self.assertEqual(status,503)
+        self.assertEqual(json.loads(raw)['code'],'store_read_unavailable')
+        status,raw,_=self.request('/api/integrity/status')
+        self.assertEqual(status,200)
+        self.assertNotIn('PRIVATE',raw.decode())
+        status,raw,_=self.request('/api/integrity/recheck',{})
+        self.assertEqual(status,200)
+        worker=self.app._view_validator
+        if worker:worker.join(timeout=4)
+        self.assertEqual(self.app.integrity_status()['status'],'verified')
+        self.assertEqual(self.request('/api/updates')[0],200)
+
+    def test_integrity_recheck_requires_same_origin_and_csrf_and_status_is_read_only(self):
+        before=(self.app.repo.root/'CURRENT.json').read_bytes()
+        self.assertEqual(self.request('/api/integrity/recheck',{},headers={'X-Atlas-Token':'wrong'})[0],403)
+        self.assertEqual(self.request('/api/integrity/recheck',{},headers={'Origin':'https://example.org'})[0],403)
+        self.assertEqual(self.request('/api/integrity/status')[0],200)
+        self.assertEqual((self.app.repo.root/'CURRENT.json').read_bytes(),before)
+
     def test_visual_preferences_are_explicit_validated_and_maps_preserve_scope_counts(self):
         data=self.state()['data']
         self.assertNotIn('visualization',data['settings'])

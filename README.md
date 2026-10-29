@@ -85,7 +85,7 @@ python -B run_atlas.py --check
 python -B -m unittest discover -s tests
 ```
 
-소스 REV: **REV021**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
+소스 REV: **REV022**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
 공개본은 별도 Git 이력이며 로컬 전체 Git 객체를 전송하지 않습니다. 로컬 폴더·과거 검증 결과에 의존하는 일부 운영 검증 스크립트는 공개본에서 사용할 수 없습니다.
 
 자동 소스 공개 범위는 `config/publication.json`에 명시합니다. 위 산출물은 사용자가 별도로 공개를 지시한 파일만 릴리스에 첨부했습니다. 그 밖의 업무 자료·개발 인계·의사결정 문서와 로컬 REV 대장은 전송하지 않습니다.

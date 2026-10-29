@@ -23,7 +23,7 @@
     <button data-view="notifications" class="nav" aria-label="알림함" title="알림함"><span aria-hidden="true">♧</span><small>ALERTS</small><i id="noticeCount" hidden></i></button>
   </nav>
   <button data-view="settings" class="nav rail-bottom" aria-label="환경 설정" title="환경 설정"><span aria-hidden="true">⚙</span><small>SETTINGS</small></button>
-  <span class="rail-version" title="화면 REV021 · 실행 서버 적용 여부는 SETTINGS 연결 진단에서 확인">UI REV021</span>
+  <span class="rail-version" title="화면 REV022 · 실행 서버 적용 여부는 SETTINGS 연결 진단에서 확인">UI REV022</span>
 </aside>
 <div class="workspace">
   <header class="topbar">
@@ -48,6 +48,7 @@
     </section>
     </div>
     <div id="errorBanner" class="error-banner" role="alert" hidden></div>
+    <div id="integrityActions" class="callout" hidden><button id="integrityRecheck" class="button" type="button">저장 자료 다시 검사</button> <span id="integrityStatus" role="status">원본·백업을 변경하지 않고 체크섬과 참조를 검사합니다. 유료 AI는 실행하지 않습니다.</span></div>
     <div id="loading" class="loading" role="status"><span class="loader"></span><span id="loadingMessage">JSON 저장소에서 탐색 공간을 준비하고 있습니다.</span></div>
     <div id="viewContainer" hidden></div>
     <footer><span>AIDC ATLAS <b>·</b> 사업과 기업의 미래를 연결하는 인텔리전스</span><span id="snapshot">JSON 원본 / 로컬 실행</span></footer>
