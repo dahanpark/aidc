@@ -52,6 +52,51 @@ class ApiTests(unittest.TestCase):
     def state(self):
         return json.loads(self.request('/api/state')[1])
 
+    def test_dart_routes_csrf_preview_save_and_no_article_side_effects(self):
+        from tests.test_dart_company import Vault
+        before = self.app.repo.snapshot()['datasets']
+        cid = next(iter(before['companies']))
+        self.app.dart.vault = Vault()
+        self.app.dart.vault.value = 'a' * 40
+        calls = []
+        def fetch(endpoint, params, key):
+            calls.append(endpoint)
+            if endpoint == 'company.json': return {'corp_name': '공시 법인', 'corp_code': '00000001'}
+            return {'list': [{'corp_code': '00000001', 'bsns_year': '2025', 'reprt_code': '11011', 'fs_div': 'CFS',
+                             'account_nm': '매출액', 'thstrm_amount': '1,000', 'rcept_no': '20260301000001'}]}
+        self.app.dart.fetch = fetch
+        body = {'company_id': cid, 'corp_code': '00000001', 'year': '2025', 'report_code': '11011', 'fs_div': 'CFS'}
+        self.assertEqual(self.request('/api/dart/preview', body, {'X-Atlas-Token': ''})[0], 403)
+        self.assertEqual(calls, [])
+        status, raw, _ = self.request('/api/dart/preview', body)
+        self.assertEqual(status, 200)
+        preview = json.loads(raw)['data']
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.request('/api/dart/save', {'preview_id': preview['preview_id'], 'confirm_same_legal_entity': True})[0], 200)
+        status, raw, _ = self.request('/api/dart/company?company_id=' + cid)
+        self.assertEqual(status, 200)
+        self.assertEqual(len(json.loads(raw)['data']['reports']), 1)
+        report_id = json.loads(raw)['data']['reports'][0]['id']
+        self.assertEqual(self.request('/api/dart/withdraw', {'company_id': cid, 'report_id': report_id, 'confirm_withdraw': True}, {'X-Atlas-Token': ''})[0], 403)
+        self.assertEqual(self.request('/api/dart/withdraw', {'company_id': cid, 'report_id': report_id, 'confirm_withdraw': True})[0], 200)
+        withdrawn = json.loads(self.request('/api/dart/company?company_id=' + cid)[1])['data']
+        self.assertEqual(withdrawn['reports'], [])
+        self.assertEqual(len(withdrawn['withdrawn_reports']), 1)
+        after = self.app.repo.snapshot()['datasets']
+        for key, value in before.items(): self.assertEqual(value, after[key])
+        self.assertNotIn('a' * 40, raw.decode())
+
+    def test_dart_connect_is_local_vault_only_and_delete_preserves_env(self):
+        from tests.test_dart_company import Vault
+        self.app.dart.vault = Vault()
+        self.assertEqual(self.request('/api/dart/connect', {'api_key': 'b' * 40}, {'Origin': 'https://evil.example'})[0], 403)
+        self.assertIsNone(self.app.dart.vault.value)
+        self.assertEqual(self.request('/api/dart/connect', {'api_key': 'b' * 40})[0], 200)
+        self.assertEqual(self.app.dart.vault.value, 'b' * 40)
+        self.assertNotIn('b' * 40, json.dumps(self.app.repo.snapshot()))
+        self.assertEqual(self.request('/api/dart/disconnect', {})[0], 200)
+        self.assertIsNone(self.app.dart.vault.value)
+
     def test_write_reply_reuses_verified_generation_without_third_archive_read(self):
         before = self.app.view_snapshot()
         aid = next(iter(before['datasets']['articles']))

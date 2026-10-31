@@ -31,6 +31,31 @@ class ViewCacheTests(unittest.TestCase):
     def expire(self):
         self.app._view_checked_at = time.monotonic() - 21
 
+    def test_warm_state_cache_avoids_archive_copy_but_remains_defensive_and_fail_closed(self):
+        expected = self.app.state({'period': '1y'})
+        owned = self.app._view_snapshot
+        import copy
+        actual_copy = copy.deepcopy
+        with patch('backend.server.copy.deepcopy', wraps=actual_copy) as copies:
+            received = self.app.state({'period': '1y'})
+        self.assertEqual(received, expected)
+        self.assertFalse(any(c.args[0] is owned for c in copies.call_args_list))
+        received['data']['companies'][0]['name'] = 'caller mutation'
+        self.assertEqual(self.app.state({'period': '1y'}), expected)
+        self.app._record_view_failure(self.app._view_pointer, MemoryError())
+        with self.assertRaises(SnapshotIntegrityError):
+            self.app.state({'period': '1y'})
+
+    def test_idle_scheduler_reads_owned_view_without_archive_copy_or_store_write(self):
+        pointer = (self.app.repo.root / 'CURRENT.json').read_bytes()
+        with patch.object(self.app.stop, 'wait', side_effect=[False, True]), \
+             patch.object(self.app, 'view_snapshot', side_effect=AssertionError('archive copy')), \
+             patch.object(self.app, '_verified_view', wraps=self.app._verified_view) as reads:
+            self.app._schedule()
+        self.assertEqual(reads.call_count, 1)
+        self.assertEqual((self.app.repo.root / 'CURRENT.json').read_bytes(), pointer)
+        self.assertFalse((self.root / 'runtime/scheduler_error.json').exists())
+
     def test_generation_metadata_avoids_record_copy_and_honors_integrity_error(self):
         expected = self.app.view_snapshot()['generation']
         with patch('backend.server.copy.deepcopy', side_effect=AssertionError('unnecessary record copy')), \
@@ -58,12 +83,12 @@ class ViewCacheTests(unittest.TestCase):
         started, release = threading.Event(), threading.Event()
         strict = self.app.repo.snapshot
         before = self.app.view_snapshot()
-        def delayed():
+        def delayed(*_):
             started.set()
             self.assertTrue(release.wait(5))
             return strict()
         self.expire()
-        with patch.object(self.app.repo, 'snapshot', side_effect=delayed) as reader:
+        with patch.object(self.app.repo, 'revalidate_snapshot', side_effect=delayed) as reader:
             try:
                 start = time.monotonic()
                 self.assertEqual(self.app.view_snapshot(), before)
@@ -108,12 +133,12 @@ class ViewCacheTests(unittest.TestCase):
     def test_old_background_validation_cannot_overwrite_a_new_commit(self):
         old = self.app.view_snapshot()
         started, release = threading.Event(), threading.Event()
-        def delayed():
+        def delayed(*_):
             started.set()
             self.assertTrue(release.wait(5))
             return deepcopy(old)
         self.expire()
-        with patch.object(self.app.repo, 'snapshot', side_effect=delayed):
+        with patch.object(self.app.repo, 'revalidate_snapshot', side_effect=delayed):
             try:
                 self.app.view_snapshot()
                 self.assertTrue(started.wait(2))
@@ -127,12 +152,12 @@ class ViewCacheTests(unittest.TestCase):
 
     def test_old_failed_validation_cannot_poison_a_new_commit(self):
         started, release = threading.Event(), threading.Event()
-        def delayed_failure():
+        def delayed_failure(*_):
             started.set()
             self.assertTrue(release.wait(5))
             raise ValueError('old-generation checksum failure')
         self.expire()
-        with patch.object(self.app.repo, 'snapshot', side_effect=delayed_failure):
+        with patch.object(self.app.repo, 'revalidate_snapshot', side_effect=delayed_failure):
             try:
                 self.app.view_snapshot()
                 self.assertTrue(started.wait(2))
@@ -181,7 +206,7 @@ class ViewCacheTests(unittest.TestCase):
     def test_explicit_recheck_recovers_only_after_full_strict_read_without_writing_store(self):
         pointer=(self.app.repo.root/'CURRENT.json').read_bytes()
         self.app._record_view_failure(pointer,PermissionError('temporary'))
-        with patch.object(self.app.repo,'snapshot',wraps=self.app.repo.snapshot) as strict:
+        with patch.object(self.app.repo,'revalidate_snapshot',wraps=self.app.repo.revalidate_snapshot) as strict:
             response=self.app.recheck_integrity();worker=self.app._view_validator
             if worker:worker.join(timeout=4)
             self.assertEqual(strict.call_count,1)
@@ -207,9 +232,9 @@ class ViewCacheTests(unittest.TestCase):
 
     def test_double_recheck_joins_existing_worker_and_never_repeats_archive_read(self):
         started,release=threading.Event(),threading.Event();strict=self.app.repo.snapshot
-        def delayed():
+        def delayed(*_):
             started.set();self.assertTrue(release.wait(5));return strict()
-        with patch.object(self.app.repo,'snapshot',side_effect=delayed) as reader:
+        with patch.object(self.app.repo,'revalidate_snapshot',side_effect=delayed) as reader:
             try:
                 self.app.recheck_integrity();self.assertTrue(started.wait(2))
                 self.assertTrue(self.app.recheck_integrity()['already_running'])

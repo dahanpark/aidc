@@ -130,7 +130,7 @@ class JsonRepository:
                         import fcntl
                         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
-    def _read(self, pointer=None, *, workers=None):
+    def _read(self, pointer=None, *, workers=None, reuse_snapshot=None):
         pointer = pointer or loads((self.root / "CURRENT.json").read_text(encoding="utf-8"))
         generation = pointer["generation"]
         if not re.fullmatch(r"[0-9a-f]{32}", generation):
@@ -142,11 +142,19 @@ class JsonRepository:
         manifest = loads(manifest_raw)
         if manifest["schema_version"] != 1 or manifest["generation"] != generation:
             raise ValueError("Unsupported snapshot schema")
-        datasets, entries = {}, []
+        reuse = reuse_snapshot is not None and reuse_snapshot.get('generation') == generation
+        datasets = reuse_snapshot['datasets'] if reuse else {}
+        if reuse and set(datasets) != set(manifest['datasets']):
+            raise ValueError('Cached dataset identity mismatch')
+        entries = []
         for dataset, records in manifest["datasets"].items():
             if not re.fullmatch(r"[a-z][a-z0-9_]*", dataset):
                 raise ValueError("Invalid dataset")
-            datasets[dataset] = {}
+            if reuse:
+                if set(datasets[dataset]) != set(records):
+                    raise ValueError('Cached record identity mismatch')
+            else:
+                datasets[dataset] = {}
             for entity_id, ref in records.items():
                 filename = ref["file"]
                 if not re.fullmatch(r"[0-9a-f]{64}\.json", filename):
@@ -164,6 +172,12 @@ class JsonRepository:
             item = loads(raw)
             if item["entity_id"] != entity_id or item["dataset"] != dataset or item["schema_version"] != 1:
                 raise ValueError("Record identity/schema mismatch")
+            if reuse:
+                if item['payload'] != datasets[dataset][entity_id]:
+                    raise ValueError('Cached record payload mismatch')
+                # All bytes, JSON and envelope checks still execute. Retain only
+                # the already-owned immutable payload, not a second full archive.
+                return dataset, entity_id, None
             return dataset, entity_id, item['payload']
 
         parallelism = 8 if workers is None and len(entries) >= 1000 else workers or 1
@@ -176,11 +190,13 @@ class JsonRepository:
             with ThreadPoolExecutor(max_workers=parallelism, thread_name_prefix='atlas-json-check') as executor:
                 for offset in range(0, len(entries), 256):
                     for dataset, entity_id, payload in executor.map(checked_record, entries[offset:offset + 256]):
-                        datasets[dataset][entity_id] = payload
+                        if not reuse:
+                            datasets[dataset][entity_id] = payload
         else:
             for entry in entries:
                 dataset, entity_id, payload = checked_record(entry)
-                datasets[dataset][entity_id] = payload
+                if not reuse:
+                    datasets[dataset][entity_id] = payload
         self.validate(datasets)
         return {"generation": generation, "as_of": manifest["created_at"], "datasets": datasets}
 
@@ -193,6 +209,14 @@ class JsonRepository:
 
     def snapshot(self):
         return self._read()
+
+    def revalidate_snapshot(self, owned_snapshot):
+        """Strictly reread every object; share only an exact verified cache.
+
+        The caller owns this read-only snapshot. A changed generation takes the
+        ordinary full path. Checksums, JSON, schemas and references are not skipped.
+        """
+        return self._read(reuse_snapshot=owned_snapshot)
 
     def _publish_verified(self, snapshot, pointer_raw):
         if self.publish_callback is None:
@@ -211,13 +235,15 @@ class JsonRepository:
             raise ValueError("Datasets must be objects")
         # Validation needs strict JSON, not the indented on-disk representation.
         # Large collection checkpoints otherwise spend seconds formatting discarded text.
-        json.dumps(datasets, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
         for dataset, records in datasets.items():
             if not re.fullmatch(r"[a-z][a-z0-9_]*", dataset) or not isinstance(records, dict):
                 raise ValueError("Invalid dataset")
             for entity_id, record in records.items():
                 if not isinstance(entity_id, str) or not isinstance(record, dict) or record.get("id") != entity_id:
                     raise ValueError("Records require matching stable IDs")
+                # Validate strict JSON record by record without allocating one
+                # giant serialized copy of a large multi-year article archive.
+                json.dumps(record, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
         for dataset, field, target in [
             ("changes", "project_id", "projects"), ("claims", "project_id", "projects"),
             ("claims", "article_id", "articles"), ("relationships", "project_id", "projects"),
@@ -232,6 +258,12 @@ class JsonRepository:
                 ref = record.get(field)
                 if ref is not None and (not isinstance(ref, str) or ref not in datasets.get(target, {})):
                     raise ValueError("Dangling reference: " + dataset + "." + field)
+        if datasets.get('dart_reports'):
+            from .dart_company import validate_report
+            for record in datasets['dart_reports'].values():
+                validate_report(record)
+                if record.get('company_id') not in datasets.get('companies', {}) or record.get('identity_confirmed') is not True:
+                    raise ValueError('Invalid DART company reference or identity confirmation')
         def check_ref(value, target, location):
             if not isinstance(value, str) or value not in datasets.get(target, {}):
                 raise ValueError("Dangling reference: " + location)

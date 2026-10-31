@@ -81,17 +81,24 @@ class AtlasApplication:
                     job.update(status='interrupted', updated_at=now(), message='앱이 재시작되었습니다. 남은 기간 수집을 재개할 수 있습니다.')
         # One full checksum read under the same writer lock as initialization.
         self.repo = JsonRepository(store or self.root / 'store', initializer=migrate)
-        self.repo.publish_callback = self._publish_view_snapshot
+        self.repo.publish_callback = self._publish_owned_view_snapshot
         self.ai = AIConnection(self.repo, self.identity, reader=self.view_snapshot)
+        from .dart_company import DartCompany
+        self.dart = DartCompany(self.repo, self.identity, reader=self.view_snapshot)
         startup_snapshot = self.repo.initial_snapshot
-        self._publish_view_snapshot(startup_snapshot, (self.repo.root / 'CURRENT.json').read_bytes())
+        self._publish_owned_view_snapshot(startup_snapshot, (self.repo.root / 'CURRENT.json').read_bytes())
         self.repo.initial_snapshot = None
         self.scheduler = threading.Thread(target=self._schedule, name="atlas-hourly", daemon=True)
 
-    def _publish_view_snapshot(self, snapshot, pointer):
+    def _publish_owned_view_snapshot(self, snapshot, pointer):
+        # Repository callbacks transfer a dedicated defensive copy. Background
+        # verification also returns an exclusively owned read-only snapshot.
+        return self._publish_view_snapshot(snapshot, pointer, owned=True)
+
+    def _publish_view_snapshot(self, snapshot, pointer, *, owned=False):
         if loads(pointer).get('generation') != snapshot.get('generation'):
             return False
-        defensive = copy.deepcopy(snapshot)
+        defensive = snapshot if owned else copy.deepcopy(snapshot)
         # This cheap pointer read is the only filesystem operation under the
         # cache lock. Full checksum scans and copies never hold the lock.
         with self._view_lock:
@@ -165,12 +172,14 @@ class AtlasApplication:
 
     def _validate_view_background(self, pointer):
         try:
-            verified = self.repo.snapshot()
+            with self._view_lock:
+                cached = self._view_snapshot if pointer == self._view_pointer else None
+            verified = self.repo.revalidate_snapshot(cached) if cached is not None else self.repo.snapshot()
             if verified.get('generation') != loads(pointer).get('generation'):
                 return
             # Publication repeats the exact CURRENT check, so an old validator
             # can never overwrite a newer internal commit or external generation.
-            self._publish_view_snapshot(verified, pointer)
+            self._publish_owned_view_snapshot(verified, pointer)
         except Exception as error:
             self._record_view_failure(pointer, error)
         finally:
@@ -208,7 +217,7 @@ class AtlasApplication:
                     return cached
                 try:
                     verified = self.repo.snapshot()
-                    if self._publish_view_snapshot(verified, pointer):
+                    if self._publish_owned_view_snapshot(verified, pointer):
                         return verified
                 except Exception as error:
                     self._record_view_failure(pointer, error)
@@ -225,7 +234,7 @@ class AtlasApplication:
         return self._verified_view()['generation']
 
     def state(self, filters=None):
-        snapshot = self.view_snapshot()
+        snapshot = self._verified_view()
         # Always check the validated snapshot first: a warm projection must not
         # hide corruption, pending validation or a changed read/bookmark state.
         dependencies = []
@@ -238,6 +247,9 @@ class AtlasApplication:
         cached = self._workspace_cache.get(cache_key)
         if cached is not None:
             return cached
+        # Only a cache miss needs a mutable working copy. Checking a warm
+        # projection must not duplicate the entire multi-year JSON archive.
+        snapshot = copy.deepcopy(snapshot)
         datasets = snapshot["datasets"]
         names = ["projects", "companies", "articles", "claims", "relationships", "changes", "read_states",
                  "bookmarks", "internal_links", "notifications", "jobs", "coverage", "extraction_runs", "news_updates", "news_read_states"]
@@ -386,7 +398,9 @@ class AtlasApplication:
     def _schedule(self):
         while not self.stop.wait(15):
             try:
-                ds = self.view_snapshot()["datasets"]
+                # Scheduling only reads eligibility/settings. Collection writes
+                # still go through strict repository transactions.
+                ds = self._verified_view()["datasets"]
                 settings = ds.get("settings", {}).get("app", {})
                 if settings.get('collection_mode') == 'live_metadata':
                     if not self.collection_lock.locked():
@@ -445,6 +459,19 @@ class AtlasApplication:
         return {"status": "rebuilt", "records": len(index["records"]), "generation": snap["generation"]}
 
     def mutate(self, operation, payload):
+        if operation == 'dart/connect':
+            return self.dart.connect(payload)
+        if operation == 'dart/disconnect':
+            if payload:
+                raise ValueError('DART 키 삭제 입력을 확인하세요.')
+            self.dart.vault.delete('dart')
+            return {'status': 'credential_deleted', 'environment_unchanged': True}
+        if operation == 'dart/preview':
+            return self.dart.preview(payload)
+        if operation == 'dart/save':
+            return self.dart.save(payload)
+        if operation == 'dart/withdraw':
+            return self.dart.withdraw(payload)
         if operation == 'integrity/recheck':
             return self.recheck_integrity()
         if operation == 'company-classification':
@@ -746,6 +773,8 @@ def make_server(app, port=8765):
                     self._json({'data':app.integrity_status()})
                 elif path == '/api/ai/status':
                     self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
+                elif path == '/api/dart/company':
+                    self._json({'data': app.dart.workspace(app._verified_view()['datasets'], filters.get('company_id', ''), filters.get('q'))})
                 elif path == '/api/collection/status':
                     from .collection_diagnostics import workspace
                     self._json({'data':workspace(app._verified_view()['datasets'],

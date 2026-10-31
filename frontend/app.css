@@ -100,3 +100,10 @@
 
 .ai-connect{white-space:nowrap}.ai-briefing{margin:10px 0 16px;padding:15px;border-top:3px solid #288e91}.ai-briefing h2{font-size:15px;margin:0}.ai-briefing .section-head{gap:8px;margin-bottom:10px}.ai-briefing-row{padding:10px 0;border-bottom:1px solid #e0e8ec}.ai-briefing-row p{font-size:12px;line-height:1.7;margin:7px 0}.ai-briefing .article-ref{font-size:10px}.ai-source-link{display:block;margin:9px 0;font-size:12px}.ai-extraction{padding:16px 0;border-bottom:1px solid #d9e3e7}.ai-extraction blockquote{margin:9px 0;padding:8px 12px;border-left:3px solid #60a7a0;font-size:12px;line-height:1.8;background:#f3faf8}.workbench-sidebar .ai-briefing{box-shadow:none;padding:12px;margin:8px 0}.workbench-sidebar .ai-briefing>.section-head{display:block}.workbench-sidebar .ai-briefing .button{margin-top:8px}.ai-settings small{overflow-wrap:anywhere}@media(max-width:560px){.topbar{flex-wrap:wrap}.topbar .ai-connect{font-size:11px;padding:6px 9px}.ai-briefing .section-head{flex-wrap:wrap}}
 .rail nav{overflow-y:auto;min-height:0;flex:1;padding-bottom:6px}.rail .nav{flex-shrink:0}.rail nav .nav small{font-size:9px;white-space:nowrap}.rail-bottom{flex-shrink:0}
+/* DART stays below the company's first relationship graph. */
+.company-dart .dart-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0}
+.company-dart label{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.company-dart textarea{width:100%;box-sizing:border-box}
+.company-dart .table-scroll{overflow-x:auto}
+.company-dart table{width:100%;min-width:680px}
+.company-dart td,.company-dart th{padding:8px;text-align:left;border-bottom:1px solid #d5e0e8}
