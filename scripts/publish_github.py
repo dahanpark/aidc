@@ -165,7 +165,7 @@ Python 3.10 이상에서 저장소를 내려받아 다음 명령으로 실행합
 python run_atlas.py
 ```
 
-Windows에서는 ZIP 전체를 압축 해제한 뒤 루트의 **AIDC ATLAS.cmd**를 더블클릭하면 됩니다. 기존 서버 재사용·업데이트 확인·브라우저 열기는 공통 실행기를 사용합니다. 실패 시 CMD 창에서 안내를 확인할 수 있습니다.
+Windows에서는 ZIP 전체를 압축 해제한 뒤 루트의 **START_ATLAS.cmd**를 더블클릭하면 됩니다. 기존 **AIDC ATLAS.cmd**도 계속 지원합니다. 초기 대량 JSON 검증은 최대 30분 준비를 기다리며, 원본 검사 자체를 생략하지 않습니다. 기존 서버 재사용·업데이트 확인·브라우저 열기는 공통 실행기를 사용합니다. 실패 시 CMD 창에서 안내를 확인할 수 있습니다.
 명령 실행: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atlas.ps1`
 주소는 기본 `http://127.0.0.1:8765/`입니다. Windows 바로가기는 `scripts/create_shortcut.ps1`로 생성할 수 있습니다.
 

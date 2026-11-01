@@ -12,6 +12,7 @@
   ],
   "include_files": [
     "AIDC ATLAS.cmd",
+    "START_ATLAS.cmd",
     "run_atlas.py",
     "config/news_sources.json",
     "config/company_profile_registry.json",

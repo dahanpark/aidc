@@ -11,7 +11,7 @@ Python 3.10 이상에서 저장소를 내려받아 다음 명령으로 실행합
 python run_atlas.py
 ```
 
-Windows에서는 ZIP 전체를 압축 해제한 뒤 루트의 **AIDC ATLAS.cmd**를 더블클릭하면 됩니다. 기존 서버 재사용·업데이트 확인·브라우저 열기는 공통 실행기를 사용합니다. 실패 시 CMD 창에서 안내를 확인할 수 있습니다.
+Windows에서는 ZIP 전체를 압축 해제한 뒤 루트의 **START_ATLAS.cmd**를 더블클릭하면 됩니다. 기존 **AIDC ATLAS.cmd**도 계속 지원합니다. 초기 대량 JSON 검증은 최대 30분 준비를 기다리며, 원본 검사 자체를 생략하지 않습니다. 기존 서버 재사용·업데이트 확인·브라우저 열기는 공통 실행기를 사용합니다. 실패 시 CMD 창에서 안내를 확인할 수 있습니다.
 명령 실행: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_atlas.ps1`
 주소는 기본 `http://127.0.0.1:8765/`입니다. Windows 바로가기는 `scripts/create_shortcut.ps1`로 생성할 수 있습니다.
 
@@ -91,7 +91,7 @@ python -B run_atlas.py --check
 python -B -m unittest discover -s tests
 ```
 
-소스 REV: **REV023**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
+소스 REV: **REV024**. 로컬 원본과 공개 이력의 연결은 `PUBLICATION.json`에 기록합니다.
 공개본은 별도 Git 이력이며 로컬 전체 Git 객체를 전송하지 않습니다. 로컬 폴더·과거 검증 결과에 의존하는 일부 운영 검증 스크립트는 공개본에서 사용할 수 없습니다.
 
 자동 소스 공개 범위는 `config/publication.json`에 명시합니다. 위 산출물은 사용자가 별도로 공개를 지시한 파일만 릴리스에 첨부했습니다. 그 밖의 업무 자료·개발 인계·의사결정 문서와 로컬 REV 대장은 전송하지 않습니다.

@@ -1,4 +1,4 @@
-param([switch]$NoBrowser, [ValidateRange(10,1800)][int]$ReadyTimeoutSeconds = 600)
+param([switch]$NoBrowser, [ValidateRange(10,1800)][int]$ReadyTimeoutSeconds = 1800)
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskRuntime = Join-Path $taskRoot 'runtime'
