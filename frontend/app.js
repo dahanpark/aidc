@@ -846,8 +846,8 @@
     window.AtlasStrategy.mount(host,{workspace:S.data.strategy,backendReady:Boolean(S.data.strategy?.active_board),articles:nitems('articles'),connection:S.data?.ai?.connection||{},
       loadBoard:getBoard,
       saveBoard:async payload=>{await api('/api/strategy/save',payload);return getBoard(payload.id);},
-      preview:async payload=>{const r=await api('/api/strategy/preview',payload);return r.data||r;},
-      analyse:async payload=>{const r=await api('/api/strategy/analyse',payload),d=r.data||r;if(!['completed','cached'].includes(d.status))throw Error(d.error?.message||'전략 분석 실패');return getBoard(payload.board_id);},
+      preview:async payload=>{return window.AtlasAIJobs.preview(api,'strategy',payload);},
+      analyse:async payload=>{const d=await window.AtlasAIJobs.run(api,'strategy',payload);if(!['completed','cached'].includes(d.status))throw Error(d.error?.message||'전략 분석 실패');return getBoard(payload.board_id);},
       exportBoard:id=>{const a=el('a');a.href='/api/strategy/report?'+newsParams()+'&board_id='+encodeURIComponent(id);a.target='_blank';a.rel='noopener';a.download='AIDC-ATLAS-Strategy-A3.html';document.body.append(a);a.click();a.remove();},
       openArticles:ids=>{const c=el('div');c.append(articleRefs(ids));modal('전략표 근거 기사',c);}
     });
@@ -916,6 +916,7 @@
     add(panel,add(el('div','card-actions'),button('API 키 연결','button',aiConnectForm),profile.credential_present?button('모델 선택','button',aiModelForm):null,profile.connected?button('연결 해제','button',async()=>{try{await mutate('/api/ai/disconnect',{},'AI 연결을 해제했습니다. 보관 키와 분석 자료는 유지합니다.');}catch{}}):null,profile.secret_ref?button('키·환경변수 삭제','button',aiForgetDialog):null,button('분석 한도','button',()=>formShell('AI 사용 한도',g=>{const batch=field(g,'한 번에 분석할 기사 · 1~20개','max_articles_per_run',profile.max_articles_per_run||3,'number');batch.min=1;batch.max=20;batch.required=true;const daily=field(g,'하루 API 호출 · 1~500회','daily_call_limit',profile.daily_call_limit||10,'number');daily.min=1;daily.max=500;daily.required=true;add(g,el('p','metadata-label field full','호출 횟수 제한이며 금액 상한은 아닙니다. 금액 한도는 제공사 계정에서도 설정하세요. 같은 입력은 저장 결과를 재사용합니다.'));},async f=>{await mutate('/api/settings',{ai_limits:{max_articles_per_run:Number(f.get('max_articles_per_run')),daily_call_limit:Number(f.get('daily_call_limit'))}},'AI 분석 한도를 저장했습니다.');}))));
     panel.append(button('미분류 기사 AI 후보 검토','button',()=>startAIAnalysis(true)));
     panel.append(button('중복 기업 AI 후보·통합 검토','button',()=>openAICleanup('company')));
+    panel.append(button('AI 작업 진행·결과','button',()=>{const host=el('div');modal('AI 작업 진행·결과',host);window.AtlasAIJobs.mount(host,api,run=>{const content=el('pre','note',JSON.stringify(run,null,2));modal('저장된 AI 결과 · 원본 후보',content);});}));
     if(window.AtlasAILimits)window.AtlasAILimits.mount(panel,{profile,save:async limits=>{await mutate('/api/settings',{ai_limits:limits},'AI 사용 한도와 역할을 저장했습니다.');}});
     if(profile.credential_error)panel.append(el('p','callout warning','Windows 보안 저장소에 접근하지 못했습니다. 이 PC에서 키를 다시 연결하거나 Windows 사용자 상태를 확인하세요.'));
     return panel;
@@ -926,13 +927,13 @@
     if(!S.data?.ai?.connection?.connected){aiConnectForm();return;}
     const limit=S.data.ai.connection.max_articles_per_run||3,pool=nitems('articles').filter(a=>a.mode==='live_metadata'&&(!classify||!a.scope_classification?.primary_scope)),selected=pool.filter(a=>S.selectedArticles.has(a.id)),articles=(selected.length?selected:pool).slice(0,limit),content=el('div');
     let prepared;
-    try{const r=await api(classify?'/api/ai/classify-preview':'/api/ai/preview',{article_ids:articles.map(a=>a.id)});prepared=r.data||r;}catch(e){toast(e.message,true);return;}
+    try{prepared=await window.AtlasAIJobs.preview(api,classify?'classify':'analysis',{article_ids:articles.map(a=>a.id)});}catch(e){toast(e.message,true);return;}
     add(content,el('p','callout',`실제 전송 입력 ${prepared.input_chars} / ${prepared.max_input_chars}자 · 출력 상한 ${prepared.max_output_tokens}토큰 · ${prepared.truncated?'공개 설명 일부 축약':'선택 표본'} · 자동 재시도 없음`));
-    const preview=el('details');preview.append(el('summary','','실제 전송 공개 기사·비교 후보 확인'),el('pre','note',JSON.stringify({articles:prepared.articles,targets:prepared.targets||[]},null,2)));content.append(preview);
+    const preview=el('details');preview.append(el('summary','','실제 전송 공개 기사·비교 후보 확인'),el('pre','note',JSON.stringify({provider:prepared.provider,model:prepared.model,system:prepared.system,response_schema:prepared.response_schema,articles:prepared.articles,targets:prepared.targets||[]},null,2)));content.append(preview);
     add(content,el('p','callout',`현재 범위의 ${selected.length?'선택':'최신'} 공개 기사 ${articles.length}개 / 관련 공개 기사 ${pool.length}개를 분석합니다. 제목·공개 RSS 설명과 비교할 공개 사업명 후보만 전송하며 API 사용량이 발생할 수 있습니다. 본문·사내 링크·스크랩 메모는 전송하지 않습니다.`));
     articles.forEach(a=>content.append(link(a.title,a.url,'ai-source-link')));
     const consent=el('input');consent.type='checkbox';const status=el('p','form-error');status.setAttribute('role','status');
-    const action=button('공개 기사 분석 실행','button primary',async()=>{action.disabled=true;status.textContent='AI가 공개 기사 근거와 동향을 분석하고 있습니다. 중복 재요청하지 마세요.';try{const response=await api(classify?'/api/ai/classify':'/api/ai/analyse',{article_ids:articles.map(a=>a.id),consent_public_metadata:true}),r=response.data||response;await load();if(!['completed','cached'].includes(r.status))throw Error(r.error?.message||'분석이 완료되지 않았습니다.');$('#modal').close();if(classify){const rr=await api('/api/ai/run?run_id='+encodeURIComponent(r.run_id),undefined,'GET');showAIResults(rr.data||rr);}toast(r.status==='cached'?'저장된 동일 입력의 분석을 재사용했습니다.':'기사 근거와 동향 분석을 저장했습니다.');}catch(e){status.textContent=e.message;}finally{action.disabled=!consent.checked||!articles.length;}});action.disabled=true;
+    const action=button('공개 기사 분석 실행','button primary',async()=>{action.disabled=true;status.textContent='AI가 공개 기사 근거와 동향을 분석하고 있습니다. 중복 재요청하지 마세요.';try{const r=await window.AtlasAIJobs.run(api,classify?'classify':'analysis',{article_ids:articles.map(a=>a.id),consent_public_metadata:true});await load();if(!['completed','cached'].includes(r.status))throw Error(r.error?.message||'분석이 완료되지 않았습니다.');$('#modal').close();if(classify){const rr=await api('/api/ai/run?run_id='+encodeURIComponent(r.run_id),undefined,'GET');showAIResults(rr.data||rr);}toast(r.status==='cached'?'저장된 동일 입력의 분석을 재사용했습니다.':'기사 근거와 동향 분석을 저장했습니다.');}catch(e){status.textContent=e.message;}finally{action.disabled=!consent.checked||!articles.length;}});action.disabled=true;
     consent.addEventListener('change',()=>{action.disabled=!consent.checked||!articles.length;});add(content,add(el('label','switch-label'),consent,document.createTextNode('위 공개 자료의 전송과 API 사용량 발생을 확인했습니다.')),status,action);modal(classify?'미분류 기사 후보 분석 범위':'AI 분석 범위 확인',content);
   }
   async function projectIdentityWorkspace(){const r=await api('/api/project-identities?include_all=true',undefined,'GET');return r.data||r;}
@@ -944,8 +945,8 @@
     const save=path=>async payload=>{await request(path,payload);await load();};
     try{window.AtlasAICleanup.mount(host,{workspace:await workspace(),mode,initialRunId,connection:S.data?.ai?.connection||{},articles:nitems('articles'),selectedArticleIds:[...S.selectedArticles],
       loadWorkspace:workspace,loadRun:id=>request('/api/ai/run?run_id='+encodeURIComponent(id),undefined,'GET'),
-      preview:(kind,payload)=>request(kind==='company'?'/api/ai/company-identity-preview':'/api/ai/classify-preview',payload),
-      analyse:(kind,payload)=>request(kind==='company'?'/api/ai/company-identity':'/api/ai/classify',payload),
+      preview:(kind,payload)=>window.AtlasAIJobs.preview(api,kind==='company'?'company_identity':'classify',payload),
+      analyse:(kind,payload)=>window.AtlasAIJobs.run(api,kind==='company'?'company_identity':'classify',payload),
       confirmScope:save('/api/ai/scope-decision'),undoScope:save('/api/ai/scope-decision'),
       confirmProjectScope:save('/api/ai/project-scope-decision'),undoProjectScope:save('/api/ai/project-scope-decision'),
       analyseProjects:()=>startAIAnalysis(false),

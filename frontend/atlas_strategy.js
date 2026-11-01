@@ -132,7 +132,7 @@
       panel.append(button('전송 표본 미리보기', () => run(() => opts.preview(selection()), result => {prepared = result; consent = false;}), busy || !valid || !opts.preview || !configured()));
       if (prepared) {
         const preview = el('section', undefined, 'strategy-preview'); preview.append(el('h5', '실제 전송 준비된 공개 기사'));
-        const context=prepared.input_data||{};preview.append(el('h5','실제 전송 회사·항목·AI 분석 기준'),el('pre',JSON.stringify({company:context.company||null,rows:context.rows||prepared.rows||[],analysis_brief:context.analysis_brief||''},null,2)));
+        const context=prepared.input_data||{};preview.append(el('h5','실제 전송 회사·항목·AI 분석 기준'),el('pre',JSON.stringify({company:context.company||null,rows:context.rows||prepared.rows||[],analysis_brief:context.analysis_brief||'',system:prepared.system,response_schema:prepared.response_schema},null,2)));
         list(prepared.articles).forEach(a => {const article = el('article'); article.append(el('strong', a.title || a.id), el('p', a.text || a.public_text || a.content || a.summary || a.excerpt || '')); preview.append(article);});
         ['limits', 'input_chars', 'input_char_count', 'max_input_chars', 'max_output_tokens', 'output_tokens', 'provider', 'model'].forEach(key => {if (prepared[key] !== undefined) preview.append(el('p', key + ': ' + (typeof prepared[key] === 'object' ? JSON.stringify(prepared[key]) : prepared[key])));});
         preview.append(check('위 공개 기사 메타데이터 전송과 개인 API 사용량 발생에 동의합니다.', consent, checked => {consent = checked; render();}, busy));

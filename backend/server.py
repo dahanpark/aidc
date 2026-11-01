@@ -88,6 +88,8 @@ class AtlasApplication:
         startup_snapshot = self.repo.initial_snapshot
         self._publish_owned_view_snapshot(startup_snapshot, (self.repo.root / 'CURRENT.json').read_bytes())
         self.repo.initial_snapshot = None
+        from .ai_jobs import AIJobs
+        self.ai_jobs = AIJobs(self.root / 'runtime' / 'ai-jobs', self.ai, stop=self.stop)
         self.scheduler = threading.Thread(target=self._schedule, name="atlas-hourly", daemon=True)
 
     def _publish_owned_view_snapshot(self, snapshot, pointer):
@@ -289,7 +291,7 @@ class AtlasApplication:
         has_live = any(a.get('mode') == 'live_metadata' for a in datasets.get('articles', {}).values())
         data.update({"mode": "live_metadata_with_verified_fixtures" if has_live else "fixture_mock", "version": __version__,
                      "capabilities": {"live_collection": sources_path.exists(), "real_ai_verified": False,
-                                      "personal_ai_connected": ai_status['connected'],
+                                      "ai_jobs": True, "personal_ai_connected": ai_status['connected'],
                                       "personal_ai_inference_executed": bool(ai_status.get('inference_verified_at')),
                                       "ai_quality_verified": False,
                                       "json_persistence": True, "internal_fetch": False,
@@ -514,6 +516,10 @@ class AtlasApplication:
             return {"status": "not_verified", "connected": False,
                     "message": "연결 프로필만 저장됩니다. 사내 프로토콜 확인 후 어댑터 구현과 실제 연결 검증이 필요합니다. 유료 API를 호출하지 않았습니다.",
                     "configured": bool(api.get("endpoint") and api.get("model"))}
+        if operation == 'ai/jobs/preview':
+            return self.ai_jobs.preview(payload.get('task'), payload.get('selection'))
+        if operation == 'ai/jobs/submit':
+            return self.ai_jobs.submit(payload)
         if operation == 'ai/connect':
             return self.ai.connect(payload)
         if operation == 'ai/disconnect':
@@ -771,6 +777,8 @@ def make_server(app, port=8765):
                     self._json({'app':'aidc-atlas', 'version':__version__, 'identity':app.identity, 'csrf_token':app.csrf})
                 elif path == '/api/integrity/status':
                     self._json({'data':app.integrity_status()})
+                elif path == '/api/ai/jobs':
+                    self._json({'data': app.ai_jobs.status(filters.get('job_id'))})
                 elif path == '/api/ai/status':
                     self._json({'data': app.ai.status(app.view_snapshot()['datasets'])})
                 elif path == '/api/dart/company':
@@ -891,8 +899,8 @@ def make_server(app, port=8765):
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                     return
                 result = app.mutate(operation or path.removeprefix("/api/"), payload)
-                if requested_operation in ('network/test', 'integrity/recheck'):
-                    # A connectivity test neither writes nor needs the JSON store.
+                if requested_operation in ('network/test', 'integrity/recheck', 'ai/jobs/preview', 'ai/jobs/submit'):
+                    # Diagnostics/job acknowledgements need no full-store copy or projection.
                     self._json({'data': result, 'as_of': now(), 'warnings': []})
                     return
                 self._json({"data": result, "as_of": now(), "snapshot_id": app.view_generation(), "warnings": []})
